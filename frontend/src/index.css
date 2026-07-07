@@ -1,0 +1,604 @@
+/* CubeDeck — design tokens
+   Palette drawn from the GameCube itself: indigo shell plastic,
+   platinum text, the spring-green A button as the one loud element. */
+:root {
+  --indigo-deep: #14122b; /* page background, near-black violet */
+  --indigo-shell: #262147; /* raised surfaces (console shell) */
+  --indigo-edge: #3d3768; /* borders, quiet structure */
+  --lilac: #8d85c0; /* secondary text, labels */
+  --platinum: #e7e5f2; /* primary text */
+  --a-green: #2fbe69; /* the A button — play, and only play */
+  --a-green-press: #27a35b;
+  --c-yellow: #f5c33b; /* warnings, sparse accents */
+
+  --font-display: ui-rounded, 'Hiragino Maru Gothic ProN', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--indigo-deep);
+  color: var(--platinum);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+/* The emulator (winit) appends its canvas straight to <body>. */
+body > canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+  background: #000;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  color: inherit;
+  background: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--a-green);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+/* ---- Library -------------------------------------------------------- */
+
+.library {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 3rem);
+  min-height: 100vh;
+}
+
+.masthead {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1rem;
+  align-items: center;
+  margin-bottom: clamp(1.5rem, 4vw, 3rem);
+}
+
+.masthead h1 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3.25rem);
+  letter-spacing: 0.02em;
+  margin: 0;
+  line-height: 1;
+}
+
+.masthead .tagline {
+  grid-column: 2;
+  margin: 0.35rem 0 0;
+  color: var(--lilac);
+}
+
+/* The cube mark: an isometric CSS cube echoing the boot screen. */
+.cube-mark {
+  width: 2.6rem;
+  height: 2.6rem;
+  grid-row: 1 / span 2;
+  background:
+    linear-gradient(210deg, transparent 48%, var(--indigo-deep) 49% 51%, transparent 52%),
+    conic-gradient(from 210deg at 50% 42%, #7d74b8 0 120deg, #4b4384 0 240deg, #332c61 0);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.seed-card {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  background: var(--indigo-shell);
+  border: 1px dashed var(--indigo-edge);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.seed-copy h2 {
+  font-family: var(--font-display);
+  margin: 0 0 0.4rem;
+}
+
+.seed-copy p {
+  margin: 0;
+  color: var(--lilac);
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.card {
+  background: var(--indigo-shell);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 1rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: transform 120ms ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.card-art,
+.seed-art {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 0.75rem;
+  aspect-ratio: 16 / 9;
+  color: rgb(255 255 255 / 85%);
+  background:
+    radial-gradient(120% 120% at 20% 10%, rgb(255 255 255 / 14%), transparent 45%),
+    hsl(var(--tile-hue, 250) 45% 38%);
+}
+
+.seed-art {
+  flex: 0 0 8rem;
+  aspect-ratio: 1;
+  font-size: 1.6rem;
+}
+
+.card-body h2 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  margin: 0 0 0.25rem;
+}
+
+.card .meta {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--lilac);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+/* The A button: CubeDeck's one loud element. Every "go" is an A press. */
+.a-button {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: radial-gradient(120% 120% at 30% 25%, #56d98c, var(--a-green) 60%);
+  color: #0b2415;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  text-decoration: none;
+  box-shadow:
+    0 3px 0 var(--a-green-press),
+    0 6px 14px rgb(0 0 0 / 40%);
+  transition: transform 80ms ease, box-shadow 80ms ease;
+}
+
+.a-button:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--a-green-press), 0 2px 6px rgb(0 0 0 / 40%);
+}
+
+.ghost {
+  color: var(--lilac);
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+}
+
+.ghost:hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+/* ---- Importer -------------------------------------------------------- */
+
+.importer {
+  background: var(--indigo-shell);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+.importer.drag-over {
+  border-color: var(--a-green);
+  box-shadow: 0 0 0 3px rgb(47 190 105 / 25%);
+}
+
+.importer h2 {
+  font-family: var(--font-display);
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.import-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.or {
+  color: var(--lilac);
+  font-size: 0.85rem;
+}
+
+.primary {
+  background: var(--indigo-edge);
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.6rem;
+  font-weight: 600;
+}
+
+.primary:hover:not(:disabled) {
+  background: #4a4380;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.url-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  background: var(--indigo-deep);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 0.6rem;
+  color: var(--platinum);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.status {
+  margin: 1rem 0 0;
+  color: var(--platinum);
+}
+
+.status.error {
+  color: var(--c-yellow);
+}
+
+.fine-print {
+  margin: 1rem 0 0;
+  color: var(--lilac);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* ---- Player ----------------------------------------------------------- */
+
+.player-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.player-screen:not(.running) {
+  background: var(--indigo-deep);
+  pointer-events: auto;
+}
+
+.notice {
+  max-width: 26rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.notice h2 {
+  font-family: var(--font-display);
+}
+
+.notice p {
+  color: var(--lilac);
+  line-height: 1.5;
+}
+
+.boot {
+  display: grid;
+  place-items: center;
+  gap: 1.25rem;
+  text-align: center;
+}
+
+/* Boot cube: a nod to the GameCube startup roll. */
+.boot-cube {
+  width: 3rem;
+  height: 3rem;
+  background: conic-gradient(from 210deg at 50% 42%, #7d74b8 0 120deg, #4b4384 0 240deg, #332c61 0);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  animation: cube-roll 1.4s ease-in-out infinite;
+}
+
+@keyframes cube-roll {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.82);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-cube {
+    animation: none;
+  }
+  .card,
+  .a-button {
+    transition: none;
+  }
+}
+
+.exit-chip {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  left: max(0.6rem, env(safe-area-inset-left));
+  z-index: 30;
+  pointer-events: auto;
+  background: rgb(20 18 43 / 75%);
+  border: 1px solid var(--indigo-edge);
+  color: var(--lilac);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  backdrop-filter: blur(6px);
+}
+
+/* ---- Touch controls --------------------------------------------------- */
+
+.touch-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touch-layer .pad-btn,
+.stick-pad,
+.pad-toggle {
+  pointer-events: auto;
+}
+
+.pad-btn {
+  position: fixed;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: rgb(255 255 255 / 85%);
+  border-radius: 50%;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pad-btn:active {
+  filter: brightness(1.2);
+}
+
+.shoulders {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.shoulder {
+  position: static;
+  width: 4.5rem;
+  height: 2.4rem;
+  border-radius: 1.2rem;
+  background: rgb(61 55 104 / 70%);
+  font-size: 1rem;
+}
+
+.shoulder.z {
+  background: rgb(42 63 138 / 75%); /* the Z button's blue */
+}
+
+.stick-pad {
+  position: fixed;
+  left: max(1.25rem, env(safe-area-inset-left));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  width: 9.5rem;
+  height: 9.5rem;
+  border-radius: 50%;
+  background: rgb(61 55 104 / 45%);
+  border: 1px solid rgb(141 133 192 / 35%);
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+
+.stick-knob {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 50%;
+  background: radial-gradient(120% 120% at 30% 25%, #a49ddb, #57508f 70%);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+.face-cluster {
+  position: fixed;
+  right: max(1.25rem, env(safe-area-inset-right));
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  width: 11.5rem;
+  height: 11.5rem;
+  pointer-events: none;
+}
+
+.face {
+  pointer-events: auto;
+}
+
+/* GameCube face layout: big green A center, red-ish B lower-left,
+   grey X right and Y top hugging the A button. */
+.face.a {
+  right: 4rem;
+  bottom: 3rem;
+  width: 4.8rem;
+  height: 4.8rem;
+  background: radial-gradient(120% 120% at 30% 25%, #56d98c, var(--a-green) 60%);
+  color: #0b2415;
+  font-size: 1.9rem;
+}
+
+.face.b {
+  right: 9.2rem;
+  bottom: 1.4rem;
+  width: 3rem;
+  height: 3rem;
+  background: radial-gradient(120% 120% at 30% 25%, #f37676, #c93a3a 65%);
+  font-size: 1.1rem;
+}
+
+.face.x {
+  right: 0.5rem;
+  bottom: 3.4rem;
+  width: 2.9rem;
+  height: 4.6rem;
+  border-radius: 1.5rem;
+  background: rgb(199 196 215 / 55%);
+  font-size: 1.1rem;
+}
+
+.face.y {
+  right: 4.3rem;
+  bottom: 8.3rem;
+  width: 4.6rem;
+  height: 2.9rem;
+  border-radius: 1.5rem;
+  background: rgb(199 196 215 / 55%);
+  font-size: 1.1rem;
+}
+
+.start {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: auto;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: rgb(61 55 104 / 70%);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+}
+
+.pad-toggle {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  right: max(0.6rem, env(safe-area-inset-right));
+  z-index: 30;
+  pointer-events: auto;
+  font-size: 1.1rem;
+  background: rgb(20 18 43 / 75%);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+}
+
+@media (max-width: 40rem) {
+  .seed-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stick-pad {
+    width: 8rem;
+    height: 8rem;
+  }
+
+  .face-cluster {
+    width: 10rem;
+    height: 10rem;
+  }
+}
+
+/* D-pad: small cross above the stick, mirrors the real pad's low priority. */
+.dpad {
+  position: fixed;
+  left: max(2.5rem, env(safe-area-inset-left));
+  bottom: 12.5rem;
+  width: 7rem;
+  height: 7rem;
+  pointer-events: none;
+}
+
+.dpad-btn {
+  pointer-events: auto;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 0.5rem;
+  background: rgb(61 55 104 / 60%);
+  font-size: 0.8rem;
+}
+
+.dpad-btn.up {
+  position: absolute;
+  left: 2.35rem;
+  top: 0;
+}
+
+.dpad-btn.left {
+  position: absolute;
+  left: 0;
+  top: 2.35rem;
+}
+
+.dpad-btn.right {
+  position: absolute;
+  right: 0;
+  top: 2.35rem;
+}
+
+.dpad-btn.down {
+  position: absolute;
+  left: 2.35rem;
+  bottom: 0;
+}
