@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ErrorBoundary from './components/ErrorBoundary.tsx'
 import Library from './components/Library.tsx'
 import Player from './components/Player.tsx'
 
@@ -25,6 +26,11 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [route])
 
-  if (route.view === 'play') return <Player gameId={route.gameId} />
+  if (route.view === 'play')
+    return (
+      <ErrorBoundary>
+        <Player gameId={route.gameId} />
+      </ErrorBoundary>
+    )
   return <Library />
 }

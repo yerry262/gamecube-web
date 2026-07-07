@@ -1,7 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addGame, deleteGame, listGames, type GameMeta } from '../lib/db.ts'
+import { addGame, deleteGame, deleteSetting, getSetting, listGames, setSetting, type GameMeta } from '../lib/db.ts'
 
 const ACCEPTED = ['.iso', '.gcm', '.rvz', '.zip', '.dol', '.bin']
+
+/**
+ * Reads the 6-char game ID (e.g. GPVE01) from a plain disc image header.
+ * Zip/RVZ wrap the header (compressed), DOL/BIN have none — skip those.
+ */
+async function readDiscId(blob: Blob, fileName: string): Promise<string | undefined> {
+  const name = fileName.toLowerCase()
+  if (!name.endsWith('.iso') && !name.endsWith('.gcm')) return undefined
+  if (blob.size < 0x20) return undefined
+  const head = new Uint8Array(await blob.slice(0, 0x20).arrayBuffer())
+  // GameCube disc magic word at 0x1c.
+  const magic = ((head[0x1c] << 24) | (head[0x1d] << 16) | (head[0x1e] << 8) | head[0x1f]) >>> 0
+  if (magic !== 0xc2339f3d) return undefined
+  const id = String.fromCharCode(...head.slice(0, 6))
+  return /^[A-Z0-9]{6}$/.test(id) ? id : undefined
+}
+
+/** GameTDB hosts GameCube covers under its Wii art path. */
+const COVER_REGIONS: Record<string, string> = { E: 'US', P: 'EN', J: 'JA' }
+
+function coverUrl(gameId: string): string {
+  const region = COVER_REGIONS[gameId[3]] ?? 'US'
+  return `https://art.gametdb.com/wii/cover/${region}/${gameId}.png`
+}
 
 function titleFromFileName(fileName: string): string {
   const stem = fileName.replace(/\.[^.]+$/, '')
@@ -32,7 +56,9 @@ export default function Library() {
   const [importState, setImportState] = useState<ImportState>({ phase: 'idle' })
   const [url, setUrl] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [dspIromSize, setDspIromSize] = useState<number | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
+  const dspInput = useRef<HTMLInputElement>(null)
 
   const refresh = useCallback(async () => {
     setGames(await listGames())
@@ -40,7 +66,20 @@ export default function Library() {
 
   useEffect(() => {
     void refresh()
+    void getSetting<Blob>('dspIrom').then((blob) => setDspIromSize(blob ? blob.size : null))
   }, [refresh])
+
+  const onDspIrom = useCallback(async (files: FileList | null) => {
+    const file = files?.[0]
+    if (!file) return
+    await setSetting('dspIrom', file)
+    setDspIromSize(file.size)
+  }, [])
+
+  const onDspIromRemove = useCallback(async () => {
+    await deleteSetting('dspIrom')
+    setDspIromSize(null)
+  }, [])
 
   const saveGame = useCallback(
     async (blob: Blob, fileName: string) => {
@@ -52,6 +91,7 @@ export default function Library() {
           fileName,
           size: blob.size,
           addedAt: Date.now(),
+          gameId: await readDiscId(blob, fileName),
         }
         await addGame(meta, blob)
         setImportState({ phase: 'idle' })
@@ -163,6 +203,15 @@ export default function Library() {
             <article className="card" key={game.id}>
               <div className="card-art" style={{ ['--tile-hue' as string]: hueFor(game.title) }}>
                 {game.title.slice(0, 2).toUpperCase()}
+                {game.gameId && (
+                  <img
+                    className="cover"
+                    src={coverUrl(game.gameId)}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => e.currentTarget.remove()}
+                  />
+                )}
               </div>
               <div className="card-body">
                 <h2>{game.title}</h2>
@@ -235,6 +284,37 @@ export default function Library() {
         <p className="fine-print">
           Games are stored in this browser only (IndexedDB). Direct links need CORS-enabled hosts. Keyboard, touch, and
           controllers are all supported in the player.
+        </p>
+      </section>
+
+      <section className="importer settings" aria-label="Player settings">
+        <h2>Player settings</h2>
+        <div className="import-row">
+          <button className="primary" onClick={() => dspInput.current?.click()}>
+            {dspIromSize === null ? 'Add DSP IROM' : 'Replace DSP IROM'}
+          </button>
+          <input
+            ref={dspInput}
+            type="file"
+            accept=".bin,.rom,.irom"
+            hidden
+            onChange={(e) => {
+              void onDspIrom(e.target.files)
+              e.target.value = ''
+            }}
+          />
+          <span className="status">
+            {dspIromSize === null ? 'No DSP IROM uploaded.' : `DSP IROM stored (${formatSize(dspIromSize)}).`}
+          </span>
+          {dspIromSize !== null && (
+            <button className="ghost" onClick={() => void onDspIromRemove()}>
+              Remove
+            </button>
+          )}
+        </div>
+        <p className="fine-print">
+          Optional: a GameCube DSP IROM dump (<span className="mono">dsp_rom.bin</span>) improves compatibility with
+          games that use the real DSP microcode. The web build has no audio output either way.
         </p>
       </section>
     </div>
