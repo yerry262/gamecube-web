@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getGame, getRom, getSetting, markPlayed, type GameMeta } from '../lib/db.ts'
-import { bootEmulator, checkWebGpu } from '../lib/emulator.ts'
+import { getGame, getMemcard, getRom, getSetting, markPlayed, saveMemcard, type GameMeta } from '../lib/db.ts'
+import { bootEmulator, checkWebGpu, readPerf, type PerfStats } from '../lib/emulator.ts'
 import { focusEmulator, startGamepadLoop, stopGamepadLoop } from '../lib/input.ts'
 import TouchControls from './TouchControls.tsx'
 
@@ -17,6 +17,7 @@ let bootStarted = false
 export default function Player({ gameId }: { gameId: string }) {
   const [phase, setPhase] = useState<Phase>({ name: 'loading', detail: 'Checking this browser…' })
   const [game, setGame] = useState<GameMeta | null>(null)
+  const [perf, setPerf] = useState<PerfStats | null>(null)
 
   useEffect(() => {
     if (bootStarted) return
@@ -47,21 +48,28 @@ export default function Player({ gameId }: { gameId: string }) {
 
         const dsp = await getSetting<Blob>('dspIrom')
         const dspBytes = dsp ? new Uint8Array(await dsp.arrayBuffer()) : undefined
+        const memcard = await getMemcard(gameId)
 
         setPhase({ name: 'loading', detail: 'Downloading the emulator…' })
         // Give React a frame to paint the loader before the wasm module
         // blocks the main thread during boot.
         await new Promise((resolve) => setTimeout(resolve, 50))
-        await bootEmulator(bytes, meta.fileName, dspBytes, (fraction) => {
-          setPhase({
-            name: 'loading',
-            detail:
-              fraction === null
-                ? 'Downloading the emulator…'
-                : fraction >= 1
-                  ? 'Starting the GameCube…'
-                  : `Downloading the emulator… ${Math.round(fraction * 100)}%`,
-          })
+        await bootEmulator(bytes, meta.fileName, {
+          dspIrom: dspBytes,
+          memcard,
+          onDownloadProgress: (fraction) => {
+            setPhase({
+              name: 'loading',
+              detail:
+                fraction === null
+                  ? 'Downloading the emulator…'
+                  : fraction >= 1
+                    ? 'Starting the GameCube…'
+                    : `Downloading the emulator… ${Math.round(fraction * 100)}%`,
+            })
+          },
+          // Fire-and-forget: a failed save write must not crash a running game.
+          onMemcardWrite: (card) => void saveMemcard(gameId, card).catch(console.error),
         })
 
         setPhase({ name: 'running' })
@@ -105,6 +113,14 @@ export default function Player({ gameId }: { gameId: string }) {
     }
   }, [phase.name])
 
+  // Friendlier take on the emulator's old FPS overlay: sample the smoothed
+  // perf stats the wasm exports and show a plain-language speed chip.
+  useEffect(() => {
+    if (phase.name !== 'running') return
+    const timer = setInterval(() => setPerf(readPerf()), 1000)
+    return () => clearInterval(timer)
+  }, [phase.name])
+
   const exit = () => {
     // Hash change to library triggers a reload in App; set it explicitly so
     // the emulator (which never returns) is torn down with the page.
@@ -140,6 +156,15 @@ export default function Player({ gameId }: { gameId: string }) {
           <button className="exit-chip" onClick={exit}>
             ✕ Exit
           </button>
+          {perf && (
+            <span
+              className={`perf-chip ${perf.percent >= 90 ? 'good' : perf.percent >= 60 ? 'ok' : 'slow'}`}
+              role="status"
+              title={`${perf.fps.toFixed(1)} frames per second`}
+            >
+              {perf.percent >= 95 ? 'Full speed' : `${Math.round(perf.percent)}% speed`}
+            </span>
+          )}
           <TouchControls />
         </>
       )}

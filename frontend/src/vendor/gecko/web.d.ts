@@ -2,6 +2,23 @@
 /* eslint-disable */
 
 /**
+ * Snapshot of the slot-A memory card (2 MiB). None before the first boot.
+ */
+export function get_memcard(): Uint8Array | undefined;
+
+/**
+ * Smoothed performance stats: `[fps, percent_of_native_speed]`.
+ * Both are 0.0 until the first frames render.
+ */
+export function get_perf(): Float64Array;
+
+/**
+ * Bumped whenever the emulated game writes to the memory card (or SRAM).
+ * Poll this cheaply; call [`get_memcard`] only when it changes.
+ */
+export function memcard_version(): number;
+
+/**
  * Full analog pad state from JS (touch overlay / Gamepad API). Sticks and
  * triggers are raw hardware values (0..=255, sticks centered at 128),
  * `buttons` is the PAD button bitmask. Replaces the whole pad state, so
@@ -9,14 +26,17 @@
  */
 export function set_pad_state(stick_x: number, stick_y: number, substick_x: number, substick_y: number, trigger_left: number, trigger_right: number, buttons: number): void;
 
-export function start_emulator(rom_data: Uint8Array, filename: string, dsp_irom?: Uint8Array | null): void;
+export function start_emulator(rom_data: Uint8Array, filename: string, dsp_irom?: Uint8Array | null, memcard?: Uint8Array | null): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly get_memcard: () => [number, number];
+    readonly get_perf: () => [number, number];
+    readonly memcard_version: () => number;
     readonly set_pad_state: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-    readonly start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+    readonly start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
     readonly rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
     readonly rust_zstd_wasm_shim_free: (a: number) => void;
     readonly rust_zstd_wasm_shim_malloc: (a: number) => number;

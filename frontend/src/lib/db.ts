@@ -100,12 +100,35 @@ export async function getRom(id: string): Promise<Blob | undefined> {
 export async function deleteGame(id: string): Promise<void> {
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(['games', 'roms'], 'readwrite')
+    const tx = db.transaction(['games', 'roms', 'settings'], 'readwrite')
     tx.objectStore('games').delete(id)
     tx.objectStore('roms').delete(id)
+    // Drop the game's memory card too — saves are useless without the game.
+    tx.objectStore('settings').delete(memcardKey(id))
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error ?? new Error('failed to delete game'))
   })
+}
+
+// Memory card persistence. Each game gets its own 2 MB slot-A card image,
+// stored as a Blob in the settings store under a namespaced key. Per-game
+// (rather than one shared card) so a corrupt save in one game can't take
+// out the others, and deleting a game can drop its saves with it.
+const memcardKey = (gameId: string) => `memcard:${gameId}`
+
+export async function getMemcard(gameId: string): Promise<Uint8Array | undefined> {
+  const blob = await getSetting<Blob>(memcardKey(gameId))
+  return blob ? new Uint8Array(await blob.arrayBuffer()) : undefined
+}
+
+export async function saveMemcard(gameId: string, data: Uint8Array): Promise<void> {
+  // Copy into a fresh ArrayBuffer-backed view: detaches the snapshot from
+  // wasm memory and satisfies Blob's BlobPart type under TS 5.7+.
+  await setSetting(memcardKey(gameId), new Blob([new Uint8Array(data)]))
+}
+
+export async function deleteMemcard(gameId: string): Promise<void> {
+  await deleteSetting(memcardKey(gameId))
 }
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {
