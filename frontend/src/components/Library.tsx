@@ -95,6 +95,17 @@ type ScanState =
   | { phase: 'found'; handles: FileSystemFileHandle[] }
   | { phase: 'error'; message: string }
 
+// A legally-redistributable homebrew demo, bundled same-origin so it loads with
+// no upload and no CORS setup — one click to prove the emulator works, and the
+// reference target for the "Add from URL" flow (swap this URL for your own
+// hosted ISO). It's Swiss (open-source GPL GameCube homebrew); see
+// frontend/public/demo/NOTICE.md. Not a game — CubeDeck ships no game data.
+const DEMO_GAME = {
+  url: `${import.meta.env.BASE_URL}demo/swiss_r2073.dol`,
+  fileName: 'swiss_r2073.dol',
+  title: 'Swiss (homebrew demo)',
+}
+
 function GameCard({ game, onDelete }: { game: GameMeta; onDelete: (game: GameMeta) => void }) {
   return (
     <article className="card">
@@ -206,37 +217,60 @@ export default function Library() {
     [saveGame, pending],
   )
 
+  // Streams a URL to IndexedDB with progress. Shared by the URL box and the
+  // "Try the demo" button. Returns whether the import succeeded.
+  const fetchAndSave = useCallback(
+    async (link: string, override?: ImportOverride & { fileName?: string }): Promise<boolean> => {
+      const fileName = override?.fileName ?? decodeURIComponent(link.split('/').pop()?.split('?')[0] || 'game.iso')
+      const label = override?.title ?? fileName
+      setImportState({ phase: 'downloading', label, received: 0, total: null })
+      try {
+        const res = await fetch(link)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const total = Number(res.headers.get('content-length')) || null
+        const reader = res.body?.getReader()
+        if (!reader) throw new Error('response has no body')
+        const chunks: BlobPart[] = []
+        let received = 0
+        for (;;) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(value)
+          received += value.byteLength
+          setImportState({ phase: 'downloading', label, received, total })
+        }
+        await saveGame(new Blob(chunks), fileName, { title: override?.title, gameId: override?.gameId })
+        return true
+      } catch (err) {
+        setImportState({
+          phase: 'error',
+          message:
+            `Download failed: ${String(err)}. The host must allow cross-origin requests (CORS) — ` +
+            'if it does not, download the file yourself and use "Add from file" instead.',
+        })
+        return false
+      }
+    },
+    [saveGame],
+  )
+
   const onDownload = useCallback(async () => {
     const link = url.trim()
     if (!link) return
-    const fileName = decodeURIComponent(link.split('/').pop()?.split('?')[0] || 'game.iso')
-    setImportState({ phase: 'downloading', label: fileName, received: 0, total: null })
-    try {
-      const res = await fetch(link)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const total = Number(res.headers.get('content-length')) || null
-      const reader = res.body?.getReader()
-      if (!reader) throw new Error('response has no body')
-      const chunks: BlobPart[] = []
-      let received = 0
-      for (;;) {
-        const { done, value } = await reader.read()
-        if (done) break
-        chunks.push(value)
-        received += value.byteLength
-        setImportState({ phase: 'downloading', label: fileName, received, total })
-      }
-      setUrl('')
-      await saveGame(new Blob(chunks), fileName, pending ? { title: pending.title, gameId: pending.id } : undefined)
-    } catch (err) {
-      setImportState({
-        phase: 'error',
-        message:
-          `Download failed: ${String(err)}. The host must allow cross-origin requests (CORS) — ` +
-          'if it does not, download the file yourself and use "Add from file" instead.',
-      })
+    const override = pending ? { title: pending.title, gameId: pending.id } : undefined
+    if (await fetchAndSave(link, override)) setUrl('')
+  }, [url, fetchAndSave, pending])
+
+  // Boots the bundled homebrew demo. If it's already in the library (from a
+  // previous try), just play it instead of re-downloading.
+  const loadDemo = useCallback(async () => {
+    const existing = games?.find((g) => g.title === DEMO_GAME.title)
+    if (existing) {
+      window.location.hash = `#play/${existing.id}`
+      return
     }
-  }, [url, saveGame, pending])
+    await fetchAndSave(DEMO_GAME.url, { fileName: DEMO_GAME.fileName, title: DEMO_GAME.title })
+  }, [games, fetchAndSave])
 
   const scanFolder = useCallback(async () => {
     if (!window.showDirectoryPicker) return
@@ -316,6 +350,11 @@ export default function Library() {
               Drop your Pikmin 2 disc image anywhere on this page, or add it below. ISO, zipped ISO, and homebrew DOL
               files work. CubeDeck never ships game data — you bring your own legally-made backup.
             </p>
+            <p>
+              <button className="primary" disabled={busy} onClick={() => void loadDemo()}>
+                ▶ Try the demo — no upload
+              </button>
+            </p>
           </div>
         </section>
       )}
@@ -344,6 +383,16 @@ export default function Library() {
 
       <section ref={importerRef} className={`importer ${dragOver ? 'drag-over' : ''}`} aria-label="Add a game">
         <h2>Add a game</h2>
+
+        <div className="demo-row">
+          <button className="primary" disabled={busy} onClick={() => void loadDemo()}>
+            ▶ Try the demo
+          </button>
+          <span className="fine-print" style={{ margin: 0 }}>
+            Boots Swiss (open-source homebrew) straight from this site — no upload, no account. It's also the reference
+            for the URL box: host your own game the same way and paste its link.
+          </span>
+        </div>
 
         <div className="search-box">
           <input

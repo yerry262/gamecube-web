@@ -5,7 +5,7 @@ Ordered by impact.
 ## Blockers for "actually play Pikmin 2"
 
 - [ ] **Verify rendering on a real browser with working WebGPU.** Every automated Chrome instance on the dev machine (headful with `--enable-unsafe-webgpu --enable-features=Vulkan`, and headless) turned out to have broken WebGPU *presentation*: even a minimal JS clear-to-red presents 0,0,0,0. The upstream gecko demo (gecko.layle.dev) renders black in the same environment, so this is a local-Chrome/driver problem, not a CubeDeck bug — but it means emulator video output is **unverified**. Test on: desktop Chrome with `chrome://flags/#enable-unsafe-webgpu` + Vulkan enabled, a Mac/Windows Chrome (WebGPU on by default), or iPad Safari 26+.
-- [ ] **Boot a real ISO end-to-end.** The ISO code path (`load_dvd` → `with_ipl_hle`) is compiled in and mirrors gecko's native `--dvd` flow, but was only exercised with a homebrew DOL (Swiss r2073). Needs a legally-made Pikmin 2 ISO to confirm.
+- [ ] **Boot a real ISO end-to-end.** The ISO code path (`load_dvd` → `with_ipl_hle`) is compiled in and mirrors gecko's native `--dvd` flow, but was only exercised with a homebrew DOL (Swiss r2073, now bundled as the in-app demo at `public/demo/`). The demo import/boot path is browser-verified up to the WebGPU gate; actual rendering + a real Pikmin 2 ISO still need the real-hardware pass.
 - [ ] **Verify touch/gamepad input on real hardware.** Input now goes through a `set_pad_state(sticks, triggers, buttons)` export in the Rust patch (no more synthetic `KeyboardEvent`s, so the winit trusted-event concern is gone), but like video it has never been observed working locally.
 
 ## Controls
