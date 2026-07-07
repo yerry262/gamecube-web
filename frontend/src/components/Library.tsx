@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addGame, deleteGame, deleteSetting, getSetting, listGames, setSetting, type GameMeta } from '../lib/db.ts'
-import { searchKnownGames, type KnownGame } from '../lib/games.ts'
+import { KNOWN_GAMES, searchKnownGames, type KnownGame } from '../lib/games.ts'
 
 const ACCEPTED = ['.iso', '.gcm', '.rvz', '.zip', '.dol', '.bin']
 
@@ -133,6 +133,16 @@ export default function Library() {
   const [dspIromSize, setDspIromSize] = useState<number | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const dspInput = useRef<HTMLInputElement>(null)
+  const importerRef = useRef<HTMLDivElement>(null)
+
+  // Selecting a game (from search or the suggested strip) arms a bring-your-
+  // own-ISO import and scrolls the import box into view. These are placeholders
+  // only — no ROM is fetched; the user still attaches their own disc.
+  const selectGame = useCallback((game: KnownGame) => {
+    setPending(game)
+    setQuery('')
+    importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
   const refresh = useCallback(async () => {
     setGames(await listGames())
@@ -332,7 +342,7 @@ export default function Library() {
         </section>
       )}
 
-      <section className={`importer ${dragOver ? 'drag-over' : ''}`} aria-label="Add a game">
+      <section ref={importerRef} className={`importer ${dragOver ? 'drag-over' : ''}`} aria-label="Add a game">
         <h2>Add a game</h2>
 
         <div className="search-box">
@@ -347,12 +357,7 @@ export default function Library() {
             <ul className="search-results">
               {results.map((game) => (
                 <li key={game.id}>
-                  <button
-                    onClick={() => {
-                      setPending(game)
-                      setQuery('')
-                    }}
-                  >
+                  <button onClick={() => selectGame(game)}>
                     <img className="result-cover" src={coverUrl(game.id)} alt="" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
                     <span>{game.title}</span>
                     <span className="mono result-id">{game.id}</span>
@@ -424,6 +429,26 @@ export default function Library() {
           requests (CORS) — point it at your own hosting for games you make or open-source. Keyboard, touch, and
           controllers are all supported in the player.
         </p>
+      </section>
+
+      <section className="importer" aria-label="Suggested games">
+        <h2>Suggested games</h2>
+        <p className="fine-print" style={{ margin: '0 0 1rem' }}>
+          Popular GameCube titles — placeholders only. Pick one to pre-fill its name and box art, then attach your own
+          disc image. CubeDeck never downloads game data.
+        </p>
+        <ul className="suggested-strip">
+          {KNOWN_GAMES.map((game) => (
+            <li key={game.id}>
+              <button className="suggested-card" onClick={() => selectGame(game)} title={`Add ${game.title}`}>
+                <span className="suggested-art">
+                  <img src={coverUrl(game.id)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                </span>
+                <span className="suggested-title">{game.title}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {CAN_SCAN_FOLDER && (
