@@ -8,6 +8,9 @@ export interface WebGpuCheck {
   reason?: string
 }
 
+// Check if the browser supports WebGPU and has a usable GPU adapter.
+// The emulator requires WebGPU for rendering; this check happens before boot
+// so we can give users a meaningful error message if their browser/GPU can't support it.
 export async function checkWebGpu(): Promise<WebGpuCheck> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu
   if (!gpu) {

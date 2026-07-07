@@ -1,6 +1,8 @@
 // IndexedDB persistence for game images and settings.
-// Two stores: `games` (small metadata records, safe to list) and
-// `roms` (the multi-hundred-MB blobs, fetched one at a time).
+// Separation strategy: `games` store holds lightweight metadata (title, size, gameId, lastPlayedAt),
+// while `roms` store holds the large binary blobs (100MB–1.4GB). This allows listing games
+// without loading all the ROM data into memory. The `settings` store holds user config (DSP IROM, etc.).
+// All operations are async via Promise wrappers around IDB transactions.
 
 export interface GameMeta {
   id: string
@@ -24,11 +26,14 @@ const DB_VERSION = 1
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
+// Lazy-initialized database connection. Cached after first open so all operations
+// use the same IDB instance. Creates object stores on first run (onupgradeneeded).
 function openDb(): Promise<IDBDatabase> {
   dbPromise ??= new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
       const db = req.result
+      // Create stores if they don't exist (first-run or schema upgrade)
       if (!db.objectStoreNames.contains('games')) db.createObjectStore('games', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('roms')) db.createObjectStore('roms')
       if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings')
@@ -39,6 +44,8 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise
 }
 
+// Promisify IDBRequest callbacks. Converts the callback-based IDB API to Promises
+// so our async/await code is cleaner and easier to reason about.
 function request<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result)

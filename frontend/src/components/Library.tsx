@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addGame, deleteGame, deleteSetting, getSetting, listGames, setSetting, type GameMeta } from '../lib/db.ts'
 import { KNOWN_GAMES, searchKnownGames, type KnownGame } from '../lib/games.ts'
+import { searchAllSources, fetchISOFromSource, type ISOResult } from '../lib/iso-sources.ts'
 
 const ACCEPTED = ['.iso', '.gcm', '.rvz', '.zip', '.dol', '.bin']
 
@@ -142,38 +143,17 @@ export default function Library() {
   const [pending, setPending] = useState<KnownGame | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [dspIromSize, setDspIromSize] = useState<number | null>(null)
+  // External ISO search state: track search query, results, and loading state
+  const [extIsoQuery, setExtIsoQuery] = useState('')
+  const [extIsoResults, setExtIsoResults] = useState<ISOResult[]>([])
+  const [extIsoSearching, setExtIsoSearching] = useState(false)
+  const [pendingIso, setPendingIso] = useState<ISOResult | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const dspInput = useRef<HTMLInputElement>(null)
   const importerRef = useRef<HTMLDivElement>(null)
 
-  // Selecting a game (from search or the suggested strip) arms a bring-your-
-  // own-ISO import and scrolls the import box into view. These are placeholders
-  // only — no ROM is fetched; the user still attaches their own disc.
-  const selectGame = useCallback((game: KnownGame) => {
-    setPending(game)
-    setQuery('')
-    importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [])
-
   const refresh = useCallback(async () => {
     setGames(await listGames())
-  }, [])
-
-  useEffect(() => {
-    void refresh()
-    void getSetting<Blob>('dspIrom').then((blob) => setDspIromSize(blob ? blob.size : null))
-  }, [refresh])
-
-  const onDspIrom = useCallback(async (files: FileList | null) => {
-    const file = files?.[0]
-    if (!file) return
-    await setSetting('dspIrom', file)
-    setDspIromSize(file.size)
-  }, [])
-
-  const onDspIromRemove = useCallback(async () => {
-    await deleteSetting('dspIrom')
-    setDspIromSize(null)
   }, [])
 
   const saveGame = useCallback(
@@ -203,6 +183,78 @@ export default function Library() {
     },
     [refresh],
   )
+
+  // Selecting a game (from search or the suggested strip) arms a bring-your-
+  // own-ISO import and scrolls the import box into view. These are placeholders
+  // only — no ROM is fetched; the user still attaches their own disc.
+  const selectGame = useCallback((game: KnownGame) => {
+    setPending(game)
+    setQuery('')
+    importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
+
+  // Search external ISO repositories (vimm.net, romsfun.com, etc.)
+  // Queries multiple sources and collects results for the user to select from
+  const searchExternalISOs = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) {
+      setExtIsoResults([])
+      return
+    }
+    setExtIsoSearching(true)
+    try {
+      const results = await searchAllSources(searchQuery)
+      setExtIsoResults(results)
+    } catch (err) {
+      console.error('External ISO search failed:', err)
+      setExtIsoResults([])
+    } finally {
+      setExtIsoSearching(false)
+    }
+  }, [])
+
+  // Select an ISO from external search results and prepare to download it
+  const selectExternalISO = useCallback((iso: ISOResult) => {
+    setPendingIso(iso)
+    setExtIsoQuery('')
+    setExtIsoResults([])
+    importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
+
+  // Download and import an ISO from an external source
+  const downloadExternalISO = useCallback(async () => {
+    if (!pendingIso) return
+    try {
+      const blob = await fetchISOFromSource(pendingIso, (received, total) => {
+        const label = `${pendingIso.title} (from ${pendingIso.source})`
+        setImportState({ phase: 'downloading', label, received, total })
+      })
+      const fileName = pendingIso.fileName || `${pendingIso.title}.iso`
+      await saveGame(blob, fileName, { title: pendingIso.title })
+      setPendingIso(null)
+    } catch (err) {
+      setImportState({
+        phase: 'error',
+        message: `Failed to download from ${pendingIso.source}: ${String(err)}`,
+      })
+    }
+  }, [pendingIso, saveGame])
+
+  useEffect(() => {
+    void refresh()
+    void getSetting<Blob>('dspIrom').then((blob) => setDspIromSize(blob ? blob.size : null))
+  }, [refresh])
+
+  const onDspIrom = useCallback(async (files: FileList | null) => {
+    const file = files?.[0]
+    if (!file) return
+    await setSetting('dspIrom', file)
+    setDspIromSize(file.size)
+  }, [])
+
+  const onDspIromRemove = useCallback(async () => {
+    await deleteSetting('dspIrom')
+    setDspIromSize(null)
+  }, [])
 
   const onFiles = useCallback(
     async (files: FileList | null) => {
@@ -426,6 +478,42 @@ export default function Library() {
           </p>
         )}
 
+        <div className="search-box">
+          <input
+            className="url-input"
+            type="search"
+            placeholder="Search external repos (vimm.net, romsfun.com)…"
+            value={extIsoQuery}
+            disabled={extIsoSearching}
+            onChange={(e) => {
+              setExtIsoQuery(e.target.value)
+              void searchExternalISOs(e.target.value)
+            }}
+          />
+          {extIsoSearching && <p className="status">Searching external repositories…</p>}
+          {extIsoResults.length > 0 && !extIsoSearching && (
+            <ul className="search-results">
+              {extIsoResults.map((iso) => (
+                <li key={`${iso.source}-${iso.id}`}>
+                  <button onClick={() => selectExternalISO(iso)}>
+                    <span>{iso.title}</span>
+                    <span className="mono result-id">{iso.source}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {pendingIso && (
+          <p className="pending-note">
+            Downloading <strong>{pendingIso.title}</strong> from {pendingIso.source}…{' '}
+            <button className="link-btn" onClick={() => setPendingIso(null)}>
+              cancel
+            </button>
+          </p>
+        )}
+
         <div className="import-row">
           <button className="primary" disabled={busy} onClick={() => fileInput.current?.click()}>
             Add from file
@@ -456,6 +544,15 @@ export default function Library() {
             Download
           </button>
         </div>
+
+        {pendingIso && (
+          <div className="import-row">
+            <button className="primary" disabled={busy} onClick={() => void downloadExternalISO()}>
+              ⬇ Get from {pendingIso.source}
+            </button>
+            {pendingIso.description && <span className="fine-print">{pendingIso.description}</span>}
+          </div>
+        )}
 
         {importState.phase === 'downloading' && (
           <p className="status" role="status">
