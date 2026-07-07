@@ -1,29 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { releaseAll, setControl, type GcControl } from '../lib/input.ts'
+import { releaseAll, setButton, setStick, type GcButton, type GcStick } from '../lib/input.ts'
 
 /** Stick vector below this fraction of the pad radius counts as centered. */
-const DEAD_ZONE = 0.3
+const DEAD_ZONE = 0.15
 
-function stickControls(dx: number, dy: number, radius: number): Set<GcControl> {
-  const active = new Set<GcControl>()
-  const threshold = radius * DEAD_ZONE
-  if (dx < -threshold) active.add('stick-left')
-  if (dx > threshold) active.add('stick-right')
-  if (dy < -threshold) active.add('stick-up')
-  if (dy > threshold) active.add('stick-down')
-  return active
-}
-
-function VirtualStick() {
+function VirtualStick({ stick, className = '' }: { stick: GcStick; className?: string }) {
   const padRef = useRef<HTMLDivElement>(null)
-  const activeRef = useRef<Set<GcControl>>(new Set())
   const [knob, setKnob] = useState({ x: 0, y: 0 })
-
-  const apply = useCallback((next: Set<GcControl>) => {
-    for (const control of activeRef.current) if (!next.has(control)) setControl(control, false)
-    for (const control of next) if (!activeRef.current.has(control)) setControl(control, true)
-    activeRef.current = next
-  }, [])
 
   const onPointer = useCallback(
     (e: React.PointerEvent) => {
@@ -39,20 +22,22 @@ function VirtualStick() {
         dy = (dy / len) * radius
       }
       setKnob({ x: dx, y: dy })
-      apply(stickControls(dx, dy, radius))
+      const dead = len / radius < DEAD_ZONE
+      // Screen y is down-positive; the pad's is up-positive.
+      setStick(stick, dead ? 0 : dx / radius, dead ? 0 : -dy / radius)
     },
-    [apply],
+    [stick],
   )
 
   const release = useCallback(() => {
     setKnob({ x: 0, y: 0 })
-    apply(new Set())
-  }, [apply])
+    setStick(stick, 0, 0)
+  }, [stick])
 
   return (
     <div
       ref={padRef}
-      className="stick-pad"
+      className={`stick-pad ${className}`}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         onPointer(e)
@@ -68,16 +53,16 @@ function VirtualStick() {
   )
 }
 
-function HoldButton({ control, className, label }: { control: GcControl; className: string; label: string }) {
+function HoldButton({ control, className, label }: { control: GcButton; className: string; label: string }) {
   return (
     <button
       className={`pad-btn ${className}`}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
-        setControl(control, true)
+        setButton(control, true)
       }}
-      onPointerUp={() => setControl(control, false)}
-      onPointerCancel={() => setControl(control, false)}
+      onPointerUp={() => setButton(control, false)}
+      onPointerCancel={() => setButton(control, false)}
       onContextMenu={(e) => e.preventDefault()}
     >
       {label}
@@ -106,7 +91,8 @@ export default function TouchControls() {
         <HoldButton control="r" className="shoulder" label="R" />
       </div>
 
-      <VirtualStick />
+      <VirtualStick stick="main" />
+      <VirtualStick stick="c" className="c-stick" />
 
       <div className="dpad">
         <HoldButton control="dpad-up" className="dpad-btn up" label="▲" />

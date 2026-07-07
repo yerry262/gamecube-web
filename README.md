@@ -43,19 +43,19 @@ This clones gecko at the pinned commit, applies `emulator/gecko-web-disc.patch` 
 | GameCube | Keyboard |
 |----------|----------|
 | Main stick | Arrow keys |
+| C-stick | T / F / G / H |
 | A / B / X / Y | X / Z / C / V |
 | Start | Enter |
 | L / R / Z | A / S / D |
 | D-pad | I J K L |
 
-Touch: on-screen GameCube-style overlay (auto-shows on touch devices, 🎮 toggles). Controllers: any standard-layout gamepad.
+Touch: on-screen GameCube-style overlay (auto-shows on touch devices, 🎮 toggles) with analog main stick (purple) and C-stick (yellow). Controllers: any standard-layout gamepad — left stick, right stick (C-stick), and analog triggers all map through.
 
 ## Known Limitations
 
 See [docs/TODO.md](docs/TODO.md) for the full list — highlights:
 
 - Rendering verified only up to the WebGPU surface on the dev machine (its Chrome cannot present WebGPU at all); needs a real-hardware test pass.
-- No C-stick bindings yet (upstream limitation; patch planned) — Pikmin 2 swarm control is unavailable until then.
 - No audio in the web build (upstream limitation).
 - Exiting a game reloads the page (the emulator owns the page once started).
 

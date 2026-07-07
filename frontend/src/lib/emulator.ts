@@ -1,6 +1,8 @@
 // Thin wrapper around the vendored gecko WASM package
 // (frontend/src/vendor/gecko, built by emulator/build.sh).
 
+import { attachPadOutput } from './input.ts'
+
 export interface WebGpuCheck {
   ok: boolean
   reason?: string
@@ -31,6 +33,7 @@ export async function checkWebGpu(): Promise<WebGpuCheck> {
 export async function bootEmulator(rom: Uint8Array, fileName: string, dspIrom?: Uint8Array): Promise<void> {
   const gecko = await import('../vendor/gecko/web.js')
   await gecko.default()
+  attachPadOutput(gecko.set_pad_state)
   gecko.start_emulator(rom, fileName, dspIrom)
   scheduleCanvasResizeNudges()
 }

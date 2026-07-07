@@ -1,8 +1,22 @@
 diff --git a/crates/web/src/lib.rs b/crates/web/src/lib.rs
-index e8010ab..1d2b592 100644
+index e8010ab..f34eae8 100644
 --- a/crates/web/src/lib.rs
 +++ b/crates/web/src/lib.rs
-@@ -559,9 +559,17 @@ pub fn start_emulator(rom_data: &[u8], filename: String, dsp_irom: Option<Vec<u8
+@@ -534,6 +534,13 @@ impl ApplicationHandler for App {
+                 }
+             }
+             WindowEvent::RedrawRequested => {
++                // Apply any pad state pushed from JS via set_pad_state.
++                if let Some(new_pad) = PENDING_PAD.with(|pending| pending.borrow_mut().take()) {
++                    if let HostInput::Gc(pad) = &mut self.input {
++                        *pad = new_pad;
++                    }
++                    self.emulator.apply_host_input(&self.input);
++                }
+                 if let Some(window) = self.window.clone() {
+                     if let Some(state) = self.state.borrow_mut().as_mut() {
+                         state.render(
+@@ -559,9 +566,17 @@ pub fn start_emulator(rom_data: &[u8], filename: String, dsp_irom: Option<Vec<u8
      let name = filename.to_lowercase();
      let mut emulator = if name.ends_with(".bin") || name.ends_with(".ipl") {
          GameCube::with_ipl(rom_data, false)
@@ -21,3 +35,48 @@ index e8010ab..1d2b592 100644
      };
  
      if let Some(irom) = dsp_irom {
+@@ -629,6 +644,44 @@ fn update_pad(pad: &mut PadStatus, key: KeyCode, pressed: bool) {
+         KeyCode::KeyK => set_button(&mut pad.buttons, pad::DPAD_DOWN, pressed),
+         KeyCode::KeyJ => set_button(&mut pad.buttons, pad::DPAD_LEFT, pressed),
+         KeyCode::KeyL => set_button(&mut pad.buttons, pad::DPAD_RIGHT, pressed),
++        // C-stick (upstream has no bindings for it): T/F/G/H, WASD-style.
++        KeyCode::KeyT => pad.substick_y = if pressed { STICK_MAX } else { STICK_CENTER },
++        KeyCode::KeyG => pad.substick_y = if pressed { STICK_MIN } else { STICK_CENTER },
++        KeyCode::KeyF => pad.substick_x = if pressed { STICK_MIN } else { STICK_CENTER },
++        KeyCode::KeyH => pad.substick_x = if pressed { STICK_MAX } else { STICK_CENTER },
+         _ => {}
+     }
+ }
++
++thread_local! {
++    // Pad state pushed from JS, picked up by the event loop on the next frame.
++    static PENDING_PAD: RefCell<Option<PadStatus>> = const { RefCell::new(None) };
++}
++
++/// Full analog pad state from JS (touch overlay / Gamepad API). Sticks and
++/// triggers are raw hardware values (0..=255, sticks centered at 128),
++/// `buttons` is the PAD button bitmask. Replaces the whole pad state, so
++/// callers must send every held control each time.
++#[wasm_bindgen]
++pub fn set_pad_state(
++    stick_x: u8,
++    stick_y: u8,
++    substick_x: u8,
++    substick_y: u8,
++    trigger_left: u8,
++    trigger_right: u8,
++    buttons: u16,
++) {
++    PENDING_PAD.with(|pending| {
++        *pending.borrow_mut() = Some(PadStatus {
++            buttons,
++            stick_x,
++            stick_y,
++            substick_x,
++            substick_y,
++            trigger_left,
++            trigger_right,
++            connected: true,
++        });
++    });
++}

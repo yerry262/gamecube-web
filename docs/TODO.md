@@ -6,13 +6,13 @@ Ordered by impact.
 
 - [ ] **Verify rendering on a real browser with working WebGPU.** Every automated Chrome instance on the dev machine (headful with `--enable-unsafe-webgpu --enable-features=Vulkan`, and headless) turned out to have broken WebGPU *presentation*: even a minimal JS clear-to-red presents 0,0,0,0. The upstream gecko demo (gecko.layle.dev) renders black in the same environment, so this is a local-Chrome/driver problem, not a CubeDeck bug — but it means emulator video output is **unverified**. Test on: desktop Chrome with `chrome://flags/#enable-unsafe-webgpu` + Vulkan enabled, a Mac/Windows Chrome (WebGPU on by default), or iPad Safari 26+.
 - [ ] **Boot a real ISO end-to-end.** The ISO code path (`load_dvd` → `with_ipl_hle`) is compiled in and mirrors gecko's native `--dvd` flow, but was only exercised with a homebrew DOL (Swiss r2073). Needs a legally-made Pikmin 2 ISO to confirm.
-- [ ] **Verify synthetic-key input reaches winit.** Touch/gamepad input dispatches synthetic `KeyboardEvent`s at the canvas; unverified because video never rendered locally. If winit filters non-trusted events, the fallback is patching `crates/web` to export a `set_pad_state(x, y, buttons)` function — that is the better long-term fix anyway.
+- [ ] **Verify touch/gamepad input on real hardware.** Input now goes through a `set_pad_state(sticks, triggers, buttons)` export in the Rust patch (no more synthetic `KeyboardEvent`s, so the winit trusted-event concern is gone), but like video it has never been observed working locally.
 
 ## Controls
 
-- [ ] **C-stick (yellow) support.** Upstream gecko's web build has no C-stick key bindings at all. Extend `emulator/gecko-web-disc.patch` to map keys (e.g. T/F/G/H) to `substick_x/substick_y` in `update_pad`, rebuild via `emulator/build.sh`, then add a yellow touch stick on the right (Pikmin 2 swarm control needs this).
-- [ ] Analog main stick: touch stick currently quantizes to 8 digital directions (arrow keys). Real analog needs the `set_pad_state` export above.
-- [ ] L/R analog triggers (currently digital full-press only).
+- [x] **C-stick (yellow) support.** T/F/G/H keys in `update_pad`, yellow touch stick above the face cluster, gamepad right stick — all analog via `set_pad_state`.
+- [x] Analog main stick (touch stick and gamepad left stick send real analog values).
+- [x] L/R analog triggers for gamepads (button click at ≥85% pull). Touch L/R buttons remain full-press — they're buttons.
 
 ## Emulator
 
