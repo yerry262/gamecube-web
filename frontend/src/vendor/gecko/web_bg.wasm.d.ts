@@ -3,6 +3,14 @@
 export const memory: WebAssembly.Memory;
 export const set_pad_state: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+export const rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
+export const rust_zstd_wasm_shim_free: (a: number) => void;
+export const rust_zstd_wasm_shim_malloc: (a: number) => number;
+export const rust_zstd_wasm_shim_memcmp: (a: number, b: number, c: number) => number;
+export const rust_zstd_wasm_shim_memcpy: (a: number, b: number, c: number) => number;
+export const rust_zstd_wasm_shim_memmove: (a: number, b: number, c: number) => number;
+export const rust_zstd_wasm_shim_memset: (a: number, b: number, c: number) => number;
+export const rust_zstd_wasm_shim_qsort: (a: number, b: number, c: number, d: number) => void;
 export const wasm_bindgen__convert__closures_____invoke__h3b8fdc9dd54ae757: (a: number, b: number, c: any) => [number, number];
 export const wasm_bindgen__convert__closures_____invoke__h7fb3191fc6f9a6d8: (a: number, b: number, c: any, d: any) => void;
 export const wasm_bindgen__convert__closures_____invoke__haf148aa52335d8bd: (a: number, b: number, c: any) => void;

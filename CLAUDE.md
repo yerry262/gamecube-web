@@ -15,7 +15,7 @@ Browser-based GameCube player: users add their own disc images (Pikmin 2 first),
 
 ### Emulator
 - Upstream: ioncodes/gecko (GPL-3.0), pinned by commit in `emulator/build.sh`.
-- `emulator/gecko-web-disc.patch` extends `crates/web` `start_emulator` to boot ISO/zip/RVZ via `image::load_dvd` + `GameCube::with_ipl_hle` (mirrors upstream tinyapp `--dvd`). Web build is interpreter-only (JIT is cranelift/native) and **requires WebGPU**.
+- `emulator/gecko-web-disc.patch` extends `crates/web`: boots ISO/zip/RVZ via `image::load_dvd` + `GameCube::with_ipl_hle` (mirrors upstream tinyapp `--dvd`; RVZ needs the `rvz` cargo feature + clang for zstd), adds C-stick key bindings (T/F/G/H), and exports `set_pad_state` for analog input from JS. Web build is interpreter-only (JIT is cranelift/native) and **requires WebGPU**.
 - The emulator appends its own canvas to `<body>` and never returns; "exit game" = page reload by design.
 
 ### Backend

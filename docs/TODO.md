@@ -16,7 +16,7 @@ Ordered by impact.
 
 ## Emulator
 
-- [ ] RVZ in the browser: web crate builds `image` with `default-features = false` (no zstd). Try enabling the `rvz` feature for wasm — RVZ files are ~5x smaller than ISO, which matters for IndexedDB quota and iPad memory.
+- [x] RVZ in the browser: the patch enables `image`'s `rvz` feature for the web crate; zstd's C sources cross-compile to wasm via clang (now a build.sh requirement). Runtime decompression untested until the real-hardware pass.
 - [ ] DSP IROM upload UI (the plumbing exists — `dspIrom` setting is read in Player; there's no settings screen to upload it yet). No audio output exists in the web build regardless (upstream limitation).
 - [ ] Save states / memory card persistence (upstream web build has none).
 - [ ] Track upstream gecko releases; rebuild with `emulator/build.sh` (bump `GECKO_COMMIT`).
