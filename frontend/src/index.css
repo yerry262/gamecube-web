@@ -463,6 +463,23 @@ button {
   pointer-events: none;
 }
 
+/* C-stick: the small yellow stick, above the face cluster (Pikmin 2 swarm). */
+.stick-pad.c-stick {
+  left: auto;
+  right: max(2.5rem, env(safe-area-inset-right));
+  bottom: 13rem;
+  width: 6.5rem;
+  height: 6.5rem;
+  background: rgb(104 96 34 / 35%);
+  border-color: rgb(214 197 94 / 40%);
+}
+
+.stick-pad.c-stick .stick-knob {
+  width: 3.4rem;
+  height: 3.4rem;
+  background: radial-gradient(120% 120% at 30% 25%, #ffe66e, #c9a92c 70%);
+}
+
 .face-cluster {
   position: fixed;
   right: max(1.25rem, env(safe-area-inset-right));

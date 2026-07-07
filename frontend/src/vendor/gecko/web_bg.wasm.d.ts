@@ -1,6 +1,7 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const set_pad_state: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
 export const wasm_bindgen__convert__closures_____invoke__h3b8fdc9dd54ae757: (a: number, b: number, c: any) => [number, number];
 export const wasm_bindgen__convert__closures_____invoke__h7fb3191fc6f9a6d8: (a: number, b: number, c: any, d: any) => void;

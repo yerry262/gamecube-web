@@ -10,7 +10,7 @@ Browser-based GameCube player: users add their own disc images (Pikmin 2 first),
 - Vite + React + TS in `frontend/`; no router — hash views (`#` = library, `#play/<id>` = player) in `App.tsx`.
 - `src/lib/db.ts` — IndexedDB (`games` meta store, `roms` blob store, `settings`). ROM blobs are 100 MB–1.4 GB; never load them for listing.
 - `src/lib/emulator.ts` — WebGPU capability check + wasm boot wrapper. Contains the canvas resize-nudge workaround (winit races ResizeObserver → 1×1 surface).
-- `src/lib/input.ts` — ALL input (touch overlay, Gamepad API) funnels into synthetic `KeyboardEvent`s dispatched at the emulator canvas, matching gecko's `update_pad` key map. Change that map only together with the Rust patch.
+- `src/lib/input.ts` — ALL input (touch overlay, Gamepad API) funnels into the `set_pad_state` wasm export added by the Rust patch: full analog pad state (sticks, C-stick, triggers, button bitmask), pushed only on change. `BUTTON_MASKS` mirrors gecko's `flipper::si::pad` constants — change them only together with the Rust patch. Physical keyboards bypass this module entirely (winit's own key handler, `update_pad`).
 - `src/vendor/gecko/` — committed wasm-pack output. Never hand-edit; regenerate with `emulator/build.sh`.
 
 ### Emulator

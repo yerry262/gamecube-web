@@ -1,6 +1,23 @@
 /* @ts-self-types="./web.d.ts" */
 
 /**
+ * Full analog pad state from JS (touch overlay / Gamepad API). Sticks and
+ * triggers are raw hardware values (0..=255, sticks centered at 128),
+ * `buttons` is the PAD button bitmask. Replaces the whole pad state, so
+ * callers must send every held control each time.
+ * @param {number} stick_x
+ * @param {number} stick_y
+ * @param {number} substick_x
+ * @param {number} substick_y
+ * @param {number} trigger_left
+ * @param {number} trigger_right
+ * @param {number} buttons
+ */
+export function set_pad_state(stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, buttons) {
+    wasm.set_pad_state(stick_x, stick_y, substick_x, substick_y, trigger_left, trigger_right, buttons);
+}
+
+/**
  * @param {Uint8Array} rom_data
  * @param {string} filename
  * @param {Uint8Array | null} [dsp_irom]

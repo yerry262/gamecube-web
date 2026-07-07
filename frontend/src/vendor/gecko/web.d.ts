@@ -1,12 +1,21 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Full analog pad state from JS (touch overlay / Gamepad API). Sticks and
+ * triggers are raw hardware values (0..=255, sticks centered at 128),
+ * `buttons` is the PAD button bitmask. Replaces the whole pad state, so
+ * callers must send every held control each time.
+ */
+export function set_pad_state(stick_x: number, stick_y: number, substick_x: number, substick_y: number, trigger_left: number, trigger_right: number, buttons: number): void;
+
 export function start_emulator(rom_data: Uint8Array, filename: string, dsp_irom?: Uint8Array | null): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly set_pad_state: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly wasm_bindgen__convert__closures_____invoke__h3b8fdc9dd54ae757: (a: number, b: number, c: any) => [number, number];
     readonly wasm_bindgen__convert__closures_____invoke__h7fb3191fc6f9a6d8: (a: number, b: number, c: any, d: any) => void;
