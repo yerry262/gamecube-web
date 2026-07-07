@@ -5,7 +5,8 @@
 # GameCube/Wii emulator in Rust with a wasm-bindgen web build, patched
 # to boot full disc images (ISO / zipped ISO) instead of only DOL files.
 #
-# Requirements: git, rustup (the pinned toolchain installs itself), wasm-pack.
+# Requirements: git, rustup (the pinned toolchain installs itself), wasm-pack,
+# clang (zstd-sys cross-compiles zstd's C sources to wasm for RVZ support).
 
 set -euo pipefail
 
