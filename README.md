@@ -40,7 +40,9 @@ This clones gecko at the pinned commit, applies `emulator/gecko-web-disc.patch` 
 
 ## Adding games
 
-Every path expects **your own** legally-made disc image — CubeDeck never ships or fetches game data.
+**Try the demo** — the fastest way to see it work: the library has a "Try the demo" button that boots [Swiss](https://github.com/emukidid/swiss-gc) (open-source GPL GameCube homebrew, bundled in `frontend/public/demo/`) straight from the site — no upload, no account. It doubles as the reference for the URL box: host your own game the same way and paste its link.
+
+For real games, every path expects **your own** legally-made disc image — CubeDeck never ships or fetches game data.
 
 - **Add from file** — pick a disc image from disk.
 - **Add from URL** — fetch a direct link from any CORS-enabled host. Point it at your own hosting for games you make or open-source; it is not a ROM search (site page URLs like ROM vaults won't work — they need a session and aren't CORS-enabled).
