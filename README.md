@@ -18,7 +18,7 @@ https://yerry262.github.io/gamecube-web
 
 - A browser with **WebGPU**: Chrome/Edge 113+ (on Linux enable `chrome://flags/#enable-unsafe-webgpu` + Vulkan), Safari 26+ / iPadOS 26+.
 - Your own legally-made game backup: `.iso`, zipped `.iso`, or homebrew `.dol`. Nothing is bundled and site page URLs (e.g. ROM vaults) can't be pasted — only direct CORS-enabled file links or local files.
-- Patience: the wasm build is interpreter-only (no JIT in browsers), so commercial games run well below full speed on most hardware. The FPS/% HUD in the top-right tells the truth.
+- Patience: the wasm build is interpreter-only (no JIT in browsers), so commercial games run well below full speed on most hardware. The speed chip in the top-right tells the truth: green "Full speed", yellow/red "X% speed" (hover for exact FPS).
 
 ## Getting Started
 
@@ -51,6 +51,10 @@ For real games, every path expects **your own** legally-made disc image — Cube
 
 Games launched in a browser show up in a per-browser **Recently played** row at the top of the library.
 
+## Saves
+
+Each game gets its own virtual 2 MB memory card (slot A), stored in the browser alongside the game (IndexedDB). In-game saves persist across page reloads and sessions automatically — no button to press. Removing a game from the library also removes its memory card. Save *states* (freeze/restore snapshots) aren't supported — the upstream emulator has no serialization.
+
 ## Controls
 
 | GameCube | Keyboard |
@@ -68,9 +72,11 @@ Touch: on-screen GameCube-style overlay (auto-shows on touch devices, 🎮 toggl
 
 See [docs/TODO.md](docs/TODO.md) for the full list — highlights:
 
-- Rendering verified only up to the WebGPU surface on the dev machine (its Chrome cannot present WebGPU at all); needs a real-hardware test pass.
+- Rendering verified only up to the WebGPU surface on the dev machine (its Chrome cannot present WebGPU at all); needs a real-hardware test pass — this also means memory-card saves and the speed chip are code-verified but not yet observed in a running game.
 - No audio in the web build (upstream limitation).
+- No save states; memory-card saves persist, full snapshots aren't supported upstream.
 - Exiting a game reloads the page (the emulator owns the page once started).
+- No ROM search or downloads, by design: every import path requires your own disc image (a vimm.net/romsfun integration that briefly landed was removed — it broke the project's legal boundary and never worked).
 
 ## License
 
