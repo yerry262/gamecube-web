@@ -1,7 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addGame, deleteGame, deleteSetting, getSetting, listGames, setSetting, type GameMeta } from '../lib/db.ts'
+import { KNOWN_GAMES, searchKnownGames, type KnownGame } from '../lib/games.ts'
 
 const ACCEPTED = ['.iso', '.gcm', '.rvz', '.zip', '.dol', '.bin']
+
+// Extensions the folder scan treats as GameCube disc images. Superset of the
+// picker's ACCEPTED (adds the ciso/gcz variants some rips use); excludes the
+// homebrew .dol/.bin, which aren't what you'd bulk-scan a game folder for.
+const SCAN_EXTS = ['.iso', '.gcm', '.rvz', '.ciso', '.gcz', '.zip']
+
+// The File System Access API (folder picker + recursive read) is Chromium-only
+// — Chrome/Edge and the Tesla browser have it; iPad Safari does not. Feature-
+// detect so the option only appears where it can work.
+const CAN_SCAN_FOLDER = typeof window !== 'undefined' && 'showDirectoryPicker' in window
+
+// Minimal typings for the parts of the File System Access API we use; the
+// bundled TS DOM lib doesn't declare showDirectoryPicker or the async values()
+// iterator on directory handles.
+interface DirectoryHandleWithValues extends FileSystemDirectoryHandle {
+  values(): AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>
+}
+declare global {
+  interface Window {
+    showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>
+  }
+}
+
+/** Recursively yields every file handle under a directory (depth-capped). */
+async function* walkFiles(dir: FileSystemDirectoryHandle, depth = 0): AsyncGenerator<FileSystemFileHandle> {
+  if (depth > 4) return
+  for await (const entry of (dir as DirectoryHandleWithValues).values()) {
+    if (entry.kind === 'file') yield entry
+    else yield* walkFiles(entry, depth + 1)
+  }
+}
 
 /**
  * Reads the 6-char game ID (e.g. GPVE01) from a plain disc image header.
@@ -45,20 +77,72 @@ function hueFor(title: string): number {
   return Math.abs(hash) % 360
 }
 
+/** Optional title/gameId to stamp on an import, from the title-search picker. */
+interface ImportOverride {
+  title?: string
+  gameId?: string
+}
+
 type ImportState =
   | { phase: 'idle' }
   | { phase: 'downloading'; label: string; received: number; total: number | null }
   | { phase: 'saving'; label: string }
   | { phase: 'error'; message: string }
 
+type ScanState =
+  | { phase: 'idle' }
+  | { phase: 'scanning' }
+  | { phase: 'found'; handles: FileSystemFileHandle[] }
+  | { phase: 'error'; message: string }
+
+function GameCard({ game, onDelete }: { game: GameMeta; onDelete: (game: GameMeta) => void }) {
+  return (
+    <article className="card">
+      <div className="card-art" style={{ ['--tile-hue' as string]: hueFor(game.title) }}>
+        {game.title.slice(0, 2).toUpperCase()}
+        {game.gameId && (
+          <img className="cover" src={coverUrl(game.gameId)} alt="" loading="lazy" onError={(e) => e.currentTarget.remove()} />
+        )}
+      </div>
+      <div className="card-body">
+        <h2>{game.title}</h2>
+        <p className="meta mono">
+          {formatSize(game.size)} · {game.fileName}
+        </p>
+      </div>
+      <div className="card-actions">
+        <a className="a-button" href={`#play/${game.id}`} aria-label={`Play ${game.title}`}>
+          A
+        </a>
+        <button className="ghost" onClick={() => onDelete(game)}>
+          Remove
+        </button>
+      </div>
+    </article>
+  )
+}
+
 export default function Library() {
   const [games, setGames] = useState<GameMeta[] | null>(null)
   const [importState, setImportState] = useState<ImportState>({ phase: 'idle' })
+  const [scanState, setScanState] = useState<ScanState>({ phase: 'idle' })
   const [url, setUrl] = useState('')
+  const [query, setQuery] = useState('')
+  const [pending, setPending] = useState<KnownGame | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [dspIromSize, setDspIromSize] = useState<number | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const dspInput = useRef<HTMLInputElement>(null)
+  const importerRef = useRef<HTMLDivElement>(null)
+
+  // Selecting a game (from search or the suggested strip) arms a bring-your-
+  // own-ISO import and scrolls the import box into view. These are placeholders
+  // only — no ROM is fetched; the user still attaches their own disc.
+  const selectGame = useCallback((game: KnownGame) => {
+    setPending(game)
+    setQuery('')
+    importerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
   const refresh = useCallback(async () => {
     setGames(await listGames())
@@ -82,19 +166,22 @@ export default function Library() {
   }, [])
 
   const saveGame = useCallback(
-    async (blob: Blob, fileName: string) => {
-      setImportState({ phase: 'saving', label: fileName })
+    async (blob: Blob, fileName: string, override?: ImportOverride) => {
+      setImportState({ phase: 'saving', label: override?.title ?? fileName })
       try {
         const meta: GameMeta = {
           id: crypto.randomUUID(),
-          title: titleFromFileName(fileName),
+          title: override?.title ?? titleFromFileName(fileName),
           fileName,
           size: blob.size,
           addedAt: Date.now(),
-          gameId: await readDiscId(blob, fileName),
+          // Trust the header when we can read it; otherwise fall back to the
+          // ID from the title-search pick (which also covers zip/RVZ).
+          gameId: (await readDiscId(blob, fileName)) ?? override?.gameId,
         }
         await addGame(meta, blob)
         setImportState({ phase: 'idle' })
+        setPending(null)
         await refresh()
       } catch (err) {
         setImportState({
@@ -114,9 +201,9 @@ export default function Library() {
         setImportState({ phase: 'error', message: `${file.name} isn't a GameCube image (${ACCEPTED.join(', ')}).` })
         return
       }
-      await saveGame(file, file.name)
+      await saveGame(file, file.name, pending ? { title: pending.title, gameId: pending.id } : undefined)
     },
-    [saveGame],
+    [saveGame, pending],
   )
 
   const onDownload = useCallback(async () => {
@@ -140,7 +227,7 @@ export default function Library() {
         setImportState({ phase: 'downloading', label: fileName, received, total })
       }
       setUrl('')
-      await saveGame(new Blob(chunks), fileName)
+      await saveGame(new Blob(chunks), fileName, pending ? { title: pending.title, gameId: pending.id } : undefined)
     } catch (err) {
       setImportState({
         phase: 'error',
@@ -149,7 +236,36 @@ export default function Library() {
           'if it does not, download the file yourself and use "Add from file" instead.',
       })
     }
-  }, [url, saveGame])
+  }, [url, saveGame, pending])
+
+  const scanFolder = useCallback(async () => {
+    if (!window.showDirectoryPicker) return
+    setScanState({ phase: 'scanning' })
+    try {
+      const dir = await window.showDirectoryPicker()
+      const handles: FileSystemFileHandle[] = []
+      for await (const handle of walkFiles(dir)) {
+        if (SCAN_EXTS.some((ext) => handle.name.toLowerCase().endsWith(ext))) handles.push(handle)
+      }
+      handles.sort((a, b) => a.name.localeCompare(b.name))
+      setScanState({ phase: 'found', handles })
+    } catch (err) {
+      // The user dismissing the folder picker isn't an error.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setScanState({ phase: 'idle' })
+        return
+      }
+      setScanState({ phase: 'error', message: `Couldn't read that folder: ${String(err)}` })
+    }
+  }, [])
+
+  const importHandle = useCallback(
+    async (handle: FileSystemFileHandle) => {
+      const file = await handle.getFile()
+      await saveGame(file, file.name)
+    },
+    [saveGame],
+  )
 
   const onDelete = useCallback(
     async (game: GameMeta) => {
@@ -161,6 +277,13 @@ export default function Library() {
   )
 
   const busy = importState.phase === 'downloading' || importState.phase === 'saving'
+  const results = searchKnownGames(query)
+  // Local-only "recently played": games launched in THIS browser, newest first.
+  // A cross-user version (recent across everyone) would need a shared backend.
+  const recent = (games ?? [])
+    .filter((g) => g.lastPlayedAt)
+    .sort((a, b) => (b.lastPlayedAt ?? 0) - (a.lastPlayedAt ?? 0))
+    .slice(0, 6)
 
   return (
     <div
@@ -197,43 +320,63 @@ export default function Library() {
         </section>
       )}
 
-      {games !== null && games.length > 0 && (
-        <section className="grid" aria-label="Your games">
-          {games.map((game) => (
-            <article className="card" key={game.id}>
-              <div className="card-art" style={{ ['--tile-hue' as string]: hueFor(game.title) }}>
-                {game.title.slice(0, 2).toUpperCase()}
-                {game.gameId && (
-                  <img
-                    className="cover"
-                    src={coverUrl(game.gameId)}
-                    alt=""
-                    loading="lazy"
-                    onError={(e) => e.currentTarget.remove()}
-                  />
-                )}
-              </div>
-              <div className="card-body">
-                <h2>{game.title}</h2>
-                <p className="meta mono">
-                  {formatSize(game.size)} · {game.fileName}
-                </p>
-              </div>
-              <div className="card-actions">
-                <a className="a-button" href={`#play/${game.id}`} aria-label={`Play ${game.title}`}>
-                  A
-                </a>
-                <button className="ghost" onClick={() => void onDelete(game)}>
-                  Remove
-                </button>
-              </div>
-            </article>
-          ))}
+      {recent.length > 0 && (
+        <section className="grid" aria-label="Recently played">
+          <h2 className="row-heading">Recently played</h2>
+          <div className="cards">
+            {recent.map((game) => (
+              <GameCard key={game.id} game={game} onDelete={onDelete} />
+            ))}
+          </div>
         </section>
       )}
 
-      <section className={`importer ${dragOver ? 'drag-over' : ''}`} aria-label="Add a game">
+      {games !== null && games.length > 0 && (
+        <section className="grid" aria-label="Your games">
+          {recent.length > 0 && <h2 className="row-heading">All games</h2>}
+          <div className="cards">
+            {games.map((game) => (
+              <GameCard key={game.id} game={game} onDelete={onDelete} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section ref={importerRef} className={`importer ${dragOver ? 'drag-over' : ''}`} aria-label="Add a game">
         <h2>Add a game</h2>
+
+        <div className="search-box">
+          <input
+            className="url-input"
+            type="search"
+            placeholder="Search by title (e.g. Pikmin, Melee)…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {results.length > 0 && (
+            <ul className="search-results">
+              {results.map((game) => (
+                <li key={game.id}>
+                  <button onClick={() => selectGame(game)}>
+                    <img className="result-cover" src={coverUrl(game.id)} alt="" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                    <span>{game.title}</span>
+                    <span className="mono result-id">{game.id}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {pending && (
+          <p className="pending-note">
+            Adding <strong>{pending.title}</strong> — attach your own disc image below.{' '}
+            <button className="link-btn" onClick={() => setPending(null)}>
+              cancel
+            </button>
+          </p>
+        )}
+
         <div className="import-row">
           <button className="primary" disabled={busy} onClick={() => fileInput.current?.click()}>
             Add from file
@@ -252,7 +395,7 @@ export default function Library() {
           <input
             className="url-input mono"
             type="url"
-            placeholder="https://example.com/your-backup.iso"
+            placeholder="https://your-host.example/your-game.iso"
             value={url}
             disabled={busy}
             onChange={(e) => setUrl(e.target.value)}
@@ -282,10 +425,72 @@ export default function Library() {
           </p>
         )}
         <p className="fine-print">
-          Games are stored in this browser only (IndexedDB). Direct links need CORS-enabled hosts. Keyboard, touch, and
+          Games are stored in this browser only (IndexedDB). The URL box works with any host that allows cross-origin
+          requests (CORS) — point it at your own hosting for games you make or open-source. Keyboard, touch, and
           controllers are all supported in the player.
         </p>
       </section>
+
+      <section className="importer" aria-label="Suggested games">
+        <h2>Suggested games</h2>
+        <p className="fine-print" style={{ margin: '0 0 1rem' }}>
+          Popular GameCube titles — placeholders only. Pick one to pre-fill its name and box art, then attach your own
+          disc image. CubeDeck never downloads game data.
+        </p>
+        <ul className="suggested-strip">
+          {KNOWN_GAMES.map((game) => (
+            <li key={game.id}>
+              <button className="suggested-card" onClick={() => selectGame(game)} title={`Add ${game.title}`}>
+                <span className="suggested-art">
+                  <img src={coverUrl(game.id)} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.visibility = 'hidden')} />
+                </span>
+                <span className="suggested-title">{game.title}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {CAN_SCAN_FOLDER && (
+        <section className="importer" aria-label="Scan a folder">
+          <h2>Scan a folder</h2>
+          <div className="import-row">
+            <button className="primary" disabled={scanState.phase === 'scanning'} onClick={() => void scanFolder()}>
+              {scanState.phase === 'scanning' ? 'Scanning…' : 'Choose folder'}
+            </button>
+            {scanState.phase === 'found' && (
+              <span className="status">
+                {scanState.handles.length
+                  ? `Found ${scanState.handles.length} game${scanState.handles.length === 1 ? '' : 's'}.`
+                  : 'No GameCube images found in that folder.'}
+              </span>
+            )}
+            {scanState.phase === 'error' && (
+              <span className="status error" role="alert">
+                {scanState.message}
+              </span>
+            )}
+          </div>
+
+          {scanState.phase === 'found' && scanState.handles.length > 0 && (
+            <ul className="scan-list">
+              {scanState.handles.map((handle) => (
+                <li key={handle.name}>
+                  <span className="mono">{handle.name}</span>
+                  <button className="ghost" disabled={busy} onClick={() => void importHandle(handle)}>
+                    Add
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="fine-print">
+            Reads a local folder (and subfolders) for {SCAN_EXTS.join(', ')} images and copies the ones you pick into
+            this browser. Nothing leaves your machine. Available in Chromium browsers (Chrome, Edge, the Tesla browser).
+          </p>
+        </section>
+      )}
 
       <section className="importer settings" aria-label="Player settings">
         <h2>Player settings</h2>

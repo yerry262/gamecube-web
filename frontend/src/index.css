@@ -125,10 +125,21 @@ button {
 }
 
 .grid {
+  margin-bottom: 2rem;
+}
+
+.grid .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: 1rem;
-  margin-bottom: 2rem;
+}
+
+.row-heading {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  color: var(--lilac);
+  margin: 0 0 0.75rem;
 }
 
 .card {
@@ -309,6 +320,146 @@ button {
   color: var(--lilac);
   font-size: 0.8rem;
   line-height: 1.5;
+}
+
+/* ---- Title search ----------------------------------------------------- */
+
+.search-box {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.search-box .url-input {
+  width: 100%;
+  flex: none;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0.3rem;
+  background: var(--indigo-deep);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 0.6rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.search-results button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.4rem;
+  color: var(--platinum);
+  text-align: left;
+}
+
+.search-results button:hover {
+  background: rgb(255 255 255 / 6%);
+}
+
+.result-cover {
+  width: 1.4rem;
+  height: 2rem;
+  object-fit: contain;
+  flex: none;
+}
+
+.result-id {
+  margin-left: auto;
+  color: var(--lilac);
+  font-size: 0.75rem;
+}
+
+.pending-note {
+  margin: 0 0 1rem;
+  color: var(--platinum);
+  font-size: 0.9rem;
+}
+
+.link-btn {
+  color: var(--c-yellow);
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+/* ---- Suggested games strip -------------------------------------------- */
+
+.suggested-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 7rem;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.suggested-card {
+  scroll-snap-align: start;
+  display: grid;
+  gap: 0.4rem;
+  width: 7rem;
+  color: var(--platinum);
+  text-align: left;
+}
+
+.suggested-art {
+  display: block;
+  aspect-ratio: 3 / 4;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--indigo-deep);
+  border: 1px solid var(--indigo-edge);
+}
+
+.suggested-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.suggested-card:hover .suggested-art {
+  border-color: var(--a-green);
+}
+
+.suggested-title {
+  font-size: 0.75rem;
+  line-height: 1.3;
+  color: var(--lilac);
+}
+
+/* ---- Folder scan ------------------------------------------------------ */
+
+.scan-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.scan-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--indigo-deep);
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.scan-list .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---- Player ----------------------------------------------------------- */

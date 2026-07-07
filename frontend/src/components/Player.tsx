@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getGame, getRom, getSetting, type GameMeta } from '../lib/db.ts'
+import { getGame, getRom, getSetting, markPlayed, type GameMeta } from '../lib/db.ts'
 import { bootEmulator, checkWebGpu } from '../lib/emulator.ts'
 import { focusEmulator, startGamepadLoop, stopGamepadLoop } from '../lib/input.ts'
 import TouchControls from './TouchControls.tsx'
@@ -67,6 +67,10 @@ export default function Player({ gameId }: { gameId: string }) {
         setPhase({ name: 'running' })
         startGamepadLoop()
         focusEmulator()
+        // Record the launch so this game leads the "Recently played" row next
+        // time the library is shown. Fire-and-forget: a failed write here must
+        // not take down a running game.
+        void markPlayed(gameId)
       } catch (err) {
         console.error(err)
         setPhase({

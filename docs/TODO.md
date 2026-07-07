@@ -27,6 +27,11 @@ Ordered by impact.
 - [x] Show download progress for the wasm on first player load.
 - [ ] Performance HUD is upstream's egui overlay (top-right); consider a friendlier "this game runs at X%" banner.
 - [x] Emulator crashes now surface the in-app error screen: React ErrorBoundary for render errors + window error/unhandledrejection listeners while running (wasm panics happen outside React).
+- [x] Title search on import (curated index in `frontend/src/lib/games.ts` → pre-fills title + game ID; user still supplies their own ISO). Metadata only, no ROM fetch.
+- [x] Folder scan via the File System Access API (`frontend/src/components/Library.tsx`): pick a local folder, recursively find `.iso/.gcm/.rvz/.ciso/.gcz/.zip`, import the ones you choose. Chromium-only (Chrome/Edge/Tesla), feature-detected.
+- [x] "Recently played" row — **per-browser only** (games launched in this browser sort to the top, driven by `lastPlayedAt`). A cross-user "recent across everyone" row was requested but deferred: it needs a shared backend, and this repo is a deliberately backend-less static site.
+- [ ] Cross-user "recently played across everyone" row. Needs a small shared backend (e.g. a tiny Railway service exposing GET/POST recent-plays, keyed by anonymized game ID). Deferred 2026-07-06 — decision was local-only for now.
+- [ ] Extend the title-search index in `frontend/src/lib/games.ts` (currently ~22 curated GameCube IDs). Plain data; add more `{ id, title }` rows as needed.
 
 ## Notes from testing (2026-07-06)
 

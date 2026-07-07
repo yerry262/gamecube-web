@@ -38,6 +38,17 @@ emulator/build.sh
 
 This clones gecko at the pinned commit, applies `emulator/gecko-web-disc.patch` (ISO/RVZ boot support for the web crate), and refreshes `frontend/src/vendor/gecko/`.
 
+## Adding games
+
+Every path expects **your own** legally-made disc image — CubeDeck never ships or fetches game data.
+
+- **Add from file** — pick a disc image from disk.
+- **Add from URL** — fetch a direct link from any CORS-enabled host. Point it at your own hosting for games you make or open-source; it is not a ROM search (site page URLs like ROM vaults won't work — they need a session and aren't CORS-enabled).
+- **Search by title** — a small built-in title index that pre-fills the game's name and box art; you still attach your own ISO.
+- **Scan a folder** — pick a local folder and CubeDeck lists the GameCube images it finds (recursively) for you to import. Chromium browsers only (Chrome, Edge, the Tesla browser); nothing leaves your machine.
+
+Games launched in a browser show up in a per-browser **Recently played** row at the top of the library.
+
 ## Controls
 
 | GameCube | Keyboard |

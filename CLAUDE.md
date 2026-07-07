@@ -8,7 +8,9 @@ Browser-based GameCube player: users add their own disc images (Pikmin 2 first),
 
 ### Frontend
 - Vite + React + TS in `frontend/`; no router — hash views (`#` = library, `#play/<id>` = player) in `App.tsx`.
-- `src/lib/db.ts` — IndexedDB (`games` meta store, `roms` blob store, `settings`). ROM blobs are 100 MB–1.4 GB; never load them for listing.
+- `src/lib/db.ts` — IndexedDB (`games` meta store, `roms` blob store, `settings`). ROM blobs are 100 MB–1.4 GB; never load them for listing. `GameMeta.lastPlayedAt` (set by `markPlayed`, called on boot) drives the per-browser "Recently played" row.
+- `src/lib/games.ts` — curated `{ id, title }` index of GameCube games for the import title-search. Metadata only; the user always supplies their own ISO. Plain data, safe to extend.
+- `src/components/Library.tsx` — import UI (file / URL / title-search / folder-scan) + library rows. Folder scan uses the File System Access API (`showDirectoryPicker`), Chromium-only and feature-detected via `CAN_SCAN_FOLDER`.
 - `src/lib/emulator.ts` — WebGPU capability check + wasm boot wrapper. Contains the canvas resize-nudge workaround (winit races ResizeObserver → 1×1 surface).
 - `src/lib/input.ts` — ALL input (touch overlay, Gamepad API) funnels into the `set_pad_state` wasm export added by the Rust patch: full analog pad state (sticks, C-stick, triggers, button bitmask), pushed only on change. `BUTTON_MASKS` mirrors gecko's `flipper::si::pad` constants — change them only together with the Rust patch. Physical keyboards bypass this module entirely (winit's own key handler, `update_pad`).
 - `src/vendor/gecko/` — committed wasm-pack output. Never hand-edit; regenerate with `emulator/build.sh`.
@@ -19,7 +21,10 @@ Browser-based GameCube player: users add their own disc images (Pikmin 2 first),
 - The emulator appends its own canvas to `<body>` and never returns; "exit game" = page reload by design.
 
 ### Backend
-- None — static site.
+- None — static site. "Recently played" is therefore per-browser; a cross-user version would need a shared backend (see `docs/TODO.md`).
+
+### Legal boundary
+- CubeDeck never ships, bundles, or fetches game data. Import paths (file, URL, title-search, folder-scan) all require the user's own disc image. Do not add integrations that download ROMs from game/ROM sites — the title-search is metadata only.
 
 ## Tech Stack
 

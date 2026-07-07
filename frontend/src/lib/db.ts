@@ -10,6 +10,13 @@ export interface GameMeta {
   addedAt: number
   /** 6-char disc game ID (e.g. GPVE01), read from the ISO header at import. */
   gameId?: string
+  /**
+   * Epoch ms of the last time this game was launched. Drives the "Recently
+   * played" row. This is per-browser only — a cross-user "recently played
+   * across everyone" row would need a shared backend, which this static site
+   * deliberately doesn't have (see docs/TODO.md).
+   */
+  lastPlayedAt?: number
 }
 
 const DB_NAME = 'cubedeck'
@@ -60,6 +67,22 @@ export async function addGame(meta: GameMeta, rom: Blob): Promise<void> {
 export async function getGame(id: string): Promise<GameMeta | undefined> {
   const db = await openDb()
   return request(db.transaction('games').objectStore('games').get(id))
+}
+
+/** Stamps a game as just-played so it floats to the "Recently played" row. */
+export async function markPlayed(id: string): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction('games', 'readwrite')
+    const store = tx.objectStore('games')
+    const get = store.get(id)
+    get.onsuccess = () => {
+      const meta = get.result as GameMeta | undefined
+      if (meta) store.put({ ...meta, lastPlayedAt: Date.now() })
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error ?? new Error('failed to mark game as played'))
+  })
 }
 
 export async function getRom(id: string): Promise<Blob | undefined> {
