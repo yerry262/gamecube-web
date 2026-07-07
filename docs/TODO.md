@@ -17,16 +17,16 @@ Ordered by impact.
 ## Emulator
 
 - [x] RVZ in the browser: the patch enables `image`'s `rvz` feature for the web crate; zstd's C sources cross-compile to wasm via clang (now a build.sh requirement). Runtime decompression untested until the real-hardware pass.
-- [ ] DSP IROM upload UI (the plumbing exists — `dspIrom` setting is read in Player; there's no settings screen to upload it yet). No audio output exists in the web build regardless (upstream limitation).
+- [x] DSP IROM upload UI ("Player settings" card in the library). No audio output exists in the web build regardless (upstream limitation).
 - [ ] Save states / memory card persistence (upstream web build has none).
 - [ ] Track upstream gecko releases; rebuild with `emulator/build.sh` (bump `GECKO_COMMIT`).
 
 ## App
 
-- [ ] Cover art for library cards (fetch from GameTDB by disc game ID after import).
-- [ ] Show download progress for the 9.5 MB wasm on first player load.
+- [x] Cover art for library cards (GameTDB by disc game ID, read from plain ISO/GCM headers at import; zip/RVZ imports keep the hue tile).
+- [x] Show download progress for the wasm on first player load.
 - [ ] Performance HUD is upstream's egui overlay (top-right); consider a friendlier "this game runs at X%" banner.
-- [ ] Error boundary around Player so emulator panics show the in-app error screen instead of a dead page.
+- [x] Emulator crashes now surface the in-app error screen: React ErrorBoundary for render errors + window error/unhandledrejection listeners while running (wasm panics happen outside React).
 
 ## Notes from testing (2026-07-06)
 

@@ -48,11 +48,21 @@ export default function Player({ gameId }: { gameId: string }) {
         const dsp = await getSetting<Blob>('dspIrom')
         const dspBytes = dsp ? new Uint8Array(await dsp.arrayBuffer()) : undefined
 
-        setPhase({ name: 'loading', detail: 'Starting the GameCube…' })
+        setPhase({ name: 'loading', detail: 'Downloading the emulator…' })
         // Give React a frame to paint the loader before the wasm module
         // blocks the main thread during boot.
         await new Promise((resolve) => setTimeout(resolve, 50))
-        await bootEmulator(bytes, meta.fileName, dspBytes)
+        await bootEmulator(bytes, meta.fileName, dspBytes, (fraction) => {
+          setPhase({
+            name: 'loading',
+            detail:
+              fraction === null
+                ? 'Downloading the emulator…'
+                : fraction >= 1
+                  ? 'Starting the GameCube…'
+                  : `Downloading the emulator… ${Math.round(fraction * 100)}%`,
+          })
+        })
 
         setPhase({ name: 'running' })
         startGamepadLoop()
@@ -70,6 +80,26 @@ export default function Player({ gameId }: { gameId: string }) {
       stopGamepadLoop()
     }
   }, [gameId])
+
+  // Emulator panics happen inside wasm on winit's event loop — outside React,
+  // so no error boundary sees them. Surface uncaught errors as the in-app
+  // error screen instead of a silently dead canvas.
+  useEffect(() => {
+    if (phase.name !== 'running') return
+    const onError = (event: ErrorEvent | PromiseRejectionEvent) => {
+      const cause = 'error' in event ? event.error : event.reason
+      setPhase({
+        name: 'error',
+        message: `The emulator crashed: ${String(cause ?? 'unknown error')}. The browser console has details.`,
+      })
+    }
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onError)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onError)
+    }
+  }, [phase.name])
 
   const exit = () => {
     // Hash change to library triggers a reload in App; set it explicitly so

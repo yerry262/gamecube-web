@@ -8,6 +8,8 @@ export interface GameMeta {
   fileName: string
   size: number
   addedAt: number
+  /** 6-char disc game ID (e.g. GPVE01), read from the ISO header at import. */
+  gameId?: string
 }
 
 const DB_NAME = 'cubedeck'
@@ -84,4 +86,9 @@ export async function getSetting<T>(key: string): Promise<T | undefined> {
 export async function setSetting(key: string, value: unknown): Promise<void> {
   const db = await openDb()
   await request(db.transaction('settings', 'readwrite').objectStore('settings').put(value, key))
+}
+
+export async function deleteSetting(key: string): Promise<void> {
+  const db = await openDb()
+  await request(db.transaction('settings', 'readwrite').objectStore('settings').delete(key))
 }
