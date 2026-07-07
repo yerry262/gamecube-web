@@ -1,3 +1,86 @@
+diff --git a/crates/gecko/src/flipper/exi/device.rs b/crates/gecko/src/flipper/exi/device.rs
+index 6513f1a..c748eb3 100644
+--- a/crates/gecko/src/flipper/exi/device.rs
++++ b/crates/gecko/src/flipper/exi/device.rs
+@@ -53,8 +53,70 @@ impl ExiDevice for ExiDummy {
+     }
+ }
+ 
++/// In-memory replacement for backing files on wasm: the browser has no
++/// filesystem, so backings live in a thread-local store keyed by path,
++/// with a version counter the host polls to know when to persist
++/// (e.g. to IndexedDB).
++#[cfg(target_arch = "wasm32")]
++pub mod wasm_backing {
++    use std::cell::{Cell, RefCell};
++    use std::collections::HashMap;
++
++    thread_local! {
++        static STORE: RefCell<HashMap<String, Vec<u8>>> = RefCell::new(HashMap::new());
++        static VERSION: Cell<u32> = const { Cell::new(0) };
++    }
++
++    /// Seed a backing (before boot) so `load_backing` finds it.
++    pub fn set(name: &str, bytes: Vec<u8>) {
++        STORE.with(|s| s.borrow_mut().insert(name.to_string(), bytes));
++    }
++
++    /// Snapshot a backing's current contents.
++    pub fn get(name: &str) -> Option<Vec<u8>> {
++        STORE.with(|s| s.borrow().get(name).cloned())
++    }
++
++    /// Bumped every time any backing is persisted; cheap to poll from JS.
++    pub fn version() -> u32 {
++        VERSION.with(|v| v.get())
++    }
++
++    pub(super) fn bump_version() {
++        VERSION.with(|v| v.set(v.get().wrapping_add(1)));
++    }
++}
++
++/// Load a fixed-size backing file into `dst`, leaving `dst` untouched (its
++/// default contents) if the file is missing or the wrong size.
++#[cfg(target_arch = "wasm32")]
++pub fn load_backing(path: &std::path::Path, dst: &mut [u8], label: &str) {
++    match wasm_backing::get(&path.to_string_lossy()) {
++        Some(bytes) if bytes.len() == dst.len() => {
++            dst.copy_from_slice(&bytes);
++            tracing::info!(path = %path.display(), label, "loaded backing from wasm store");
++        }
++        Some(bytes) => tracing::warn!(
++            path = %path.display(),
++            label,
++            got = bytes.len(),
++            expected = dst.len(),
++            "wasm backing size mismatch, using default"
++        ),
++        None => tracing::info!(path = %path.display(), label, "no wasm backing, using default"),
++    }
++}
++
++#[cfg(target_arch = "wasm32")]
++pub fn persist_backing(path: &std::path::Path, data: &[u8], label: &str) {
++    let _ = label;
++    wasm_backing::set(&path.to_string_lossy(), data.to_vec());
++    wasm_backing::bump_version();
++}
++
+ /// Load a fixed-size backing file into `dst`, leaving `dst` untouched (its
+ /// default contents) if the file is missing or the wrong size.
++#[cfg(not(target_arch = "wasm32"))]
+ pub fn load_backing(path: &std::path::Path, dst: &mut [u8], label: &str) {
+     match std::fs::read(path) {
+         Ok(bytes) if bytes.len() == dst.len() => {
+@@ -72,6 +134,7 @@ pub fn load_backing(path: &std::path::Path, dst: &mut [u8], label: &str) {
+     }
+ }
+ 
++#[cfg(not(target_arch = "wasm32"))]
+ pub fn persist_backing(path: &std::path::Path, data: &[u8], label: &str) {
+     if let Some(parent) = path.parent()
+         && !parent.as_os_str().is_empty()
 diff --git a/crates/web/Cargo.lock b/crates/web/Cargo.lock
 index a90df50..5693413 100644
 --- a/crates/web/Cargo.lock
@@ -56,10 +139,59 @@ index ee61bb4..e506f0a 100644
  dbglib = { path = "../dbglib", optional = true }
  egui-phosphor = { version = "0.12.0", optional = true, features = ["fill"] }
 diff --git a/crates/web/src/lib.rs b/crates/web/src/lib.rs
-index e8010ab..f34eae8 100644
+index e8010ab..565006d 100644
 --- a/crates/web/src/lib.rs
 +++ b/crates/web/src/lib.rs
-@@ -534,6 +534,13 @@ impl ApplicationHandler for App {
+@@ -324,6 +324,15 @@ impl State {
+         };
+         let native_pct = (fps / native_hz) * 100.0;
+ 
++        // Smooth over the history window and mirror for JS (get_perf); the
++        // instantaneous numbers are too jumpy for a user-facing banner.
++        let avg_fps = if self.fps_history.is_empty() {
++            fps
++        } else {
++            self.fps_history.iter().map(|e| e[1]).sum::<f64>() / self.fps_history.len() as f64
++        };
++        PERF.with(|p| p.set([avg_fps, (avg_fps / native_hz) * 100.0]));
++
+         // Run emulation (queues GxActions into the WebSink).
+         #[cfg(feature = "debug")]
+         debug_state.tick(emulator);
+@@ -361,24 +370,16 @@ impl State {
+         // Blit the GxRenderer's XFB output to the swapchain.
+         self.blit_xfb(&view);
+ 
+-        // egui overlay
++        // egui overlay. The perf HUD upstream drew here is gone: perf is
++        // exported to JS via get_perf() and rendered by the host page.
++        let _ = native_pct;
+         let raw_input = self.egui_winit.take_egui_input(window);
+-        let full_output = self.egui_ctx.run_ui(raw_input, |ui| {
+-            let ctx = ui.ctx().clone();
+-            let frame_style =
+-                egui::Frame::window(&ctx.global_style()).fill(egui::Color32::from_rgba_unmultiplied(20, 20, 20, 180));
+-            egui::Window::new("perf_hud")
+-                .title_bar(false)
+-                .resizable(false)
+-                .movable(false)
+-                .anchor(egui::Align2::RIGHT_TOP, [-8.0, 8.0])
+-                .frame(frame_style)
+-                .show(&ctx, |ui| {
+-                    ui.label(egui::RichText::new(format!("{fps:.1} FPS  {native_pct:.1}%")).monospace());
+-                });
+-
++        let full_output = self.egui_ctx.run_ui(raw_input, |_ui| {
+             #[cfg(feature = "debug")]
+-            debug_state.show(&ctx, emulator);
++            {
++                let ctx = _ui.ctx().clone();
++                debug_state.show(&ctx, emulator);
++            }
+         });
+ 
+         self.egui_winit
+@@ -534,6 +535,13 @@ impl ApplicationHandler for App {
                  }
              }
              WindowEvent::RedrawRequested => {
@@ -73,7 +205,22 @@ index e8010ab..f34eae8 100644
                  if let Some(window) = self.window.clone() {
                      if let Some(state) = self.state.borrow_mut().as_mut() {
                          state.render(
-@@ -559,9 +566,17 @@ pub fn start_emulator(rom_data: &[u8], filename: String, dsp_irom: Option<Vec<u8
+@@ -552,22 +560,42 @@ impl ApplicationHandler for App {
+     }
+ }
+ 
++// Slot-A memory card: same 2 MiB (256-block) card the native app inserts.
++// On wasm the "path" is just a key into the in-memory backing store
++// (gecko::flipper::exi::device::wasm_backing); JS seeds it before boot and
++// polls memcard_version()/get_memcard() to persist writes to IndexedDB.
++const MEMCARD_A_FILE: &str = "memcard_a.raw";
++const MEMCARD_A_BLOCKS: u32 = 256;
++
+ #[wasm_bindgen]
+-pub fn start_emulator(rom_data: &[u8], filename: String, dsp_irom: Option<Vec<u8>>) {
++pub fn start_emulator(rom_data: &[u8], filename: String, dsp_irom: Option<Vec<u8>>, memcard: Option<Vec<u8>>) {
+     console_error_panic_hook::set_once();
+ 
      let name = filename.to_lowercase();
      let mut emulator = if name.ends_with(".bin") || name.ends_with(".ipl") {
          GameCube::with_ipl(rom_data, false)
@@ -92,7 +239,18 @@ index e8010ab..f34eae8 100644
      };
  
      if let Some(irom) = dsp_irom {
-@@ -629,6 +644,44 @@ fn update_pad(pad: &mut PadStatus, key: KeyCode, pressed: bool) {
+         emulator.dsp.load_irom(&irom);
+     }
+ 
++    if let Some(bytes) = memcard {
++        gecko::flipper::exi::device::wasm_backing::set(MEMCARD_A_FILE, bytes);
++    }
++    emulator.insert_memory_card(0, Some(MEMCARD_A_FILE.into()), MEMCARD_A_BLOCKS);
++
+     let input = HostInput::gc_connected();
+     emulator.apply_host_input(&input);
+ 
+@@ -629,6 +657,66 @@ fn update_pad(pad: &mut PadStatus, key: KeyCode, pressed: bool) {
          KeyCode::KeyK => set_button(&mut pad.buttons, pad::DPAD_DOWN, pressed),
          KeyCode::KeyJ => set_button(&mut pad.buttons, pad::DPAD_LEFT, pressed),
          KeyCode::KeyL => set_button(&mut pad.buttons, pad::DPAD_RIGHT, pressed),
@@ -108,6 +266,28 @@ index e8010ab..f34eae8 100644
 +thread_local! {
 +    // Pad state pushed from JS, picked up by the event loop on the next frame.
 +    static PENDING_PAD: RefCell<Option<PadStatus>> = const { RefCell::new(None) };
++    // [avg fps, percent of native speed], updated once per rendered frame.
++    static PERF: std::cell::Cell<[f64; 2]> = const { std::cell::Cell::new([0.0, 0.0]) };
++}
++
++/// Smoothed performance stats: `[fps, percent_of_native_speed]`.
++/// Both are 0.0 until the first frames render.
++#[wasm_bindgen]
++pub fn get_perf() -> Vec<f64> {
++    PERF.with(|p| p.get().to_vec())
++}
++
++/// Bumped whenever the emulated game writes to the memory card (or SRAM).
++/// Poll this cheaply; call [`get_memcard`] only when it changes.
++#[wasm_bindgen]
++pub fn memcard_version() -> u32 {
++    gecko::flipper::exi::device::wasm_backing::version()
++}
++
++/// Snapshot of the slot-A memory card (2 MiB). None before the first boot.
++#[wasm_bindgen]
++pub fn get_memcard() -> Option<Vec<u8>> {
++    gecko::flipper::exi::device::wasm_backing::get(MEMCARD_A_FILE)
 +}
 +
 +/// Full analog pad state from JS (touch overlay / Gamepad API). Sticks and

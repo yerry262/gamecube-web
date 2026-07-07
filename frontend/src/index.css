@@ -560,6 +560,34 @@ button {
   backdrop-filter: blur(6px);
 }
 
+/* "Running at X% speed" chip: friendlier replacement for the emulator's old
+   FPS overlay, anchored opposite the exit chip. */
+.perf-chip {
+  position: fixed;
+  top: max(0.6rem, env(safe-area-inset-top));
+  right: max(0.6rem, env(safe-area-inset-right));
+  z-index: 30;
+  pointer-events: none;
+  background: rgb(20 18 43 / 75%);
+  border: 1px solid var(--indigo-edge);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  backdrop-filter: blur(6px);
+}
+
+.perf-chip.good {
+  color: #8be9a8;
+}
+
+.perf-chip.ok {
+  color: #f0d264;
+}
+
+.perf-chip.slow {
+  color: #f08a8a;
+}
+
 /* ---- Touch controls --------------------------------------------------- */
 
 .touch-layer {

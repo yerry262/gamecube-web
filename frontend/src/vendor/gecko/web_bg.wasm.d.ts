@@ -1,8 +1,11 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const get_memcard: () => [number, number];
+export const get_perf: () => [number, number];
+export const memcard_version: () => number;
 export const set_pad_state: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-export const start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
+export const start_emulator: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => void;
 export const rust_zstd_wasm_shim_calloc: (a: number, b: number) => number;
 export const rust_zstd_wasm_shim_free: (a: number) => void;
 export const rust_zstd_wasm_shim_malloc: (a: number) => number;

@@ -62,21 +62,71 @@ async function fetchWasmWithProgress(onProgress: (fraction: number | null) => vo
   }
 }
 
+export interface BootOptions {
+  dspIrom?: Uint8Array
+  /** Saved slot-A memory card image to boot with (2 MB, from a previous run). */
+  memcard?: Uint8Array
+  onDownloadProgress?: (fraction: number | null) => void
+  /** Called with a fresh card snapshot whenever the game writes a save. */
+  onMemcardWrite?: (bytes: Uint8Array) => void
+}
+
+export interface PerfStats {
+  fps: number
+  /** Emulation speed as a percentage of the console's native refresh rate. */
+  percent: number
+}
+
+// The loaded wasm module, kept for post-boot polling (perf + memcard). Only
+// ever set once: the emulator can't be restarted without a page reload.
+type GeckoModule = typeof import('../vendor/gecko/web.js')
+let gecko: GeckoModule | null = null
+
+/**
+ * Smoothed emulation performance, or null before the first frames render.
+ * Backs the player's "running at X%" banner.
+ */
+export function readPerf(): PerfStats | null {
+  if (!gecko) return null
+  const [fps, percent] = gecko.get_perf()
+  return fps > 0 ? { fps, percent } : null
+}
+
+// How often to check whether the game saved. The version check is a trivial
+// wasm call; the 2 MB card copy only happens when it actually changed.
+const MEMCARD_POLL_MS = 2000
+
+function startMemcardWatch(onWrite: (bytes: Uint8Array) => void): void {
+  if (!gecko) return
+  const mod = gecko
+  let lastVersion = mod.memcard_version()
+  const check = () => {
+    const version = mod.memcard_version()
+    if (version === lastVersion) return
+    lastVersion = version
+    const card = mod.get_memcard()
+    if (card) onWrite(card)
+  }
+  setInterval(check, MEMCARD_POLL_MS)
+  // Best-effort flush when the tab is backgrounded or closed mid-save-window.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') check()
+  })
+  window.addEventListener('pagehide', check)
+}
+
 /**
  * Boots the emulator. Never returns control of the page: gecko/winit appends
  * a canvas to <body> and runs its own event loop until the page is reloaded.
  */
-export async function bootEmulator(
-  rom: Uint8Array,
-  fileName: string,
-  dspIrom?: Uint8Array,
-  onDownloadProgress?: (fraction: number | null) => void,
-): Promise<void> {
-  const gecko = await import('../vendor/gecko/web.js')
-  const wasm = onDownloadProgress ? await fetchWasmWithProgress(onDownloadProgress) : undefined
-  await gecko.default(wasm ? { module_or_path: wasm } : undefined)
-  attachPadOutput(gecko.set_pad_state)
-  gecko.start_emulator(rom, fileName, dspIrom)
+export async function bootEmulator(rom: Uint8Array, fileName: string, opts: BootOptions = {}): Promise<void> {
+  const mod = await import('../vendor/gecko/web.js')
+  const wasm = opts.onDownloadProgress ? await fetchWasmWithProgress(opts.onDownloadProgress) : undefined
+  await mod.default(wasm ? { module_or_path: wasm } : undefined)
+  gecko = mod
+  attachPadOutput(mod.set_pad_state)
+  mod.start_emulator(rom, fileName, opts.dspIrom, opts.memcard)
+  if (opts.onMemcardWrite) startMemcardWatch(opts.onMemcardWrite)
   scheduleCanvasResizeNudges()
 }
 
