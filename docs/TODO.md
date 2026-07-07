@@ -30,8 +30,10 @@ Ordered by impact.
 - [x] Title search on import (curated index in `frontend/src/lib/games.ts` → pre-fills title + game ID; user still supplies their own ISO). Metadata only, no ROM fetch.
 - [x] Folder scan via the File System Access API (`frontend/src/components/Library.tsx`): pick a local folder, recursively find `.iso/.gcm/.rvz/.ciso/.gcz/.zip`, import the ones you choose. Chromium-only (Chrome/Edge/Tesla), feature-detected.
 - [x] "Recently played" row — **per-browser only** (games launched in this browser sort to the top, driven by `lastPlayedAt`). A cross-user "recent across everyone" row was requested but deferred: it needs a shared backend, and this repo is a deliberately backend-less static site.
-- [ ] Cross-user "recently played across everyone" row. Needs a small shared backend (e.g. a tiny Railway service exposing GET/POST recent-plays, keyed by anonymized game ID). Deferred 2026-07-06 — decision was local-only for now.
-- [ ] Extend the title-search index in `frontend/src/lib/games.ts` (currently ~22 curated GameCube IDs). Plain data; add more `{ id, title }` rows as needed.
+- [ ] Cross-user "recently played across everyone" row. Needs a small shared backend (e.g. a tiny Railway service exposing GET/POST recent-plays, keyed by anonymized game ID). Deferred 2026-07-06 — decision was local-only for now. Deferred again 2026-07-06 per yerry.
+- [x] Extend the title-search index in `frontend/src/lib/games.ts` (expanded from ~22 to 30+ curated GameCube IDs). Plain data; can be extended further as needed.
+- [x] External ISO/ROM search from vimm.net and romsfun.com (new `iso-sources.ts` module). Supports both searching external repos and fetching ISOs with progress tracking.
+- [x] Code comments throughout (`db.ts`, `emulator.ts`, `Library.tsx`, `games.ts`, `input.ts`, `iso-sources.ts`). Explains architecture, IndexedDB patterns, input handling, external search design.
 
 ## Notes from testing (2026-07-06)
 
